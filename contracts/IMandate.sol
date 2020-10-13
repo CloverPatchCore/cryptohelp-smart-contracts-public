@@ -16,7 +16,7 @@ interface IMandate {
 
     function dealCreate(uint _id) external;
 
-    function dealSubmit(uint _id) external;
+    function dealPopulate(uint _id, address _targetManager, uint256 _duration, uint16 _takeProfit, uint16 _stopLoss) external payable;
 
-    function dealPopulate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable;
+    function dealSubmit(uint _id) external;
 }
