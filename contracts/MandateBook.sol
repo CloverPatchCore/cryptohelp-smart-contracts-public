@@ -83,20 +83,44 @@ contract Mandate is IMandateBook, AMandate, Ownable, ReentrancyGuard {
     }
     function acceptMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
+
         // actions
         _mandates[id].status = LifeCycle.ACCEPTED;
+        if (msg.value > 0) this.depositCollateral(id);
+        (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
+        if(!isSufficientCollateral) emit WaitForMoreCollateral(id, outstanding);
+        
         // event emissions
+        //ok to accept even with insufficient collateral TODO: discuss
         emit AcceptMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
+
     /* Fund manager can collate the mandate in portions through acceptMandate, depositCollateral, 
     however the collaoteral balance after this function should satisfy the stopLoss ratio declared by investor */
     function startMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
+        // assumed it's ok to start straight from the submitted or from the accepted state
+        // LifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
+        require(LifeCycle.SUBMITTED == _mandates[id].status || LifeCycle.ACCEPTED == _mandates[id].status, "Can only start LifeCycle.SUBMITTED or LifeCycle.ACCEPTED");
+        
         // actions
-        _mandates[id].status = LifeCycle.STARTED;
+        if (msg.value > 0) this.depositCollateral(id);
+
+        //now, if collateral requirement is not met we will wait for more collateral
+        (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
+        if(isSufficientCollateral) {
+            _mandates[id].status = LifeCycle.STARTED;
+            emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
+        } else {
+            emit WaitForMoreCollateral(id, outstanding);
+        }
         // event emissions
-        emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
+    function checkStartCollateralConditions(uint256 id) public view returns(bool check, uint256 outstanding){
+        check = _mandates[id].collatEthers * 100 > _mandates[id].ethers * (100 - _mandates[id].stopLoss);
+        outstanding = (_mandates[id].ethers * (100 - _mandates[id].stopLoss) - _mandates[id].collatEthers * 100) / 100;
+    }
+
     function closeMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
@@ -142,4 +166,5 @@ contract Mandate is IMandateBook, AMandate, Ownable, ReentrancyGuard {
     event CancelMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event DepositMandate(uint256 id, uint256 amount);
     event DepositCollateral(uint256 id, uint256 amount);
+    event WaitForMoreCollateral(uint256 id, uint256 outstanding);
 }
