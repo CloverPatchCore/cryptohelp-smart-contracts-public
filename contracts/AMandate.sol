@@ -8,7 +8,8 @@ contract AMandate {
         ACCEPTED,
         STARTED,
         STOPPEDOUT,
-        CLOSED
+        CLOSEDINPROFIT,
+        SETTLED
     }
 
     struct Mandate {

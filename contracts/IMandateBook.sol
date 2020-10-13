@@ -21,4 +21,10 @@ interface IMandateBook {
     function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable; //accepts investment funds from investor
 
     function submitMandate(uint id) external;
+
+    function depositMandate(uint256 id) external payable returns (uint256 finalMandateBalance);
+
+    function depositCollateral(uint256 id) external payable returns (uint256 finalCollateralBalance);
+
+    
 }

@@ -8,7 +8,7 @@ import "./IMandateBook.sol";
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
+contract Mandate is IMandateBook, AMandate, Ownable, ReentrancyGuard {
 
     address private _manager; //TODO REDO to list
     Mandate[] private _mandates;
@@ -42,6 +42,7 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
         Mandate memory m = Mandate({
             status: LifeCycle.POPULATED,
             ethers: 0,
+            collatEthers: 0,
             investor: msg.sender,
             manager: manager,
             duration: duration,
@@ -50,7 +51,7 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
         });
         _mandates.push(m);
         id = _mandates.length - 1;
-        if(msg.value > 0) _mandateTopUp(id, msg.value);
+        if(msg.value > 0) this.depositMandate(id);
 
         emit CreateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
         
@@ -67,7 +68,7 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
         _mandates[id].takeProfit = takeProfit;
         _mandates[id].stopLoss = stopLoss;
 
-        if(msg.value > 0) _mandateTopUp(id, msg.value);
+        if(msg.value > 0) this.depositMandate(id);
         
         // event emissions
         emit PopulateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
@@ -87,7 +88,9 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
         // event emissions
         emit AcceptMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function startMandate(uint256 id) external payable onlyFundManager(id) {
+    /* Fund manager can collate the mandate in portions through acceptMandate, depositCollateral, 
+    however the collaoteral balance after this function should satisfy the stopLoss ratio declared by investor */
+    function startMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.STARTED;
@@ -110,14 +113,26 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
 
     function _init() private {}
 
-    function _mandateTopUp(uint256 id, uint256 amount) internal{
+    function depositMandate(uint256 id) external payable override nonReentrant onlyInvestor(id) returns (uint256) {
         require(_mandates[id].status < LifeCycle.ACCEPTED, "Can't add balance on or beyond LifeCycle.ACCEPTED");
         
-        _mandates[id].ethers += amount;
+        _mandates[id].ethers += msg.value;
         
-        emit TopUpMandate(id, amount);
+        emit DepositMandate(id, msg.value);
+
+        return _mandates[id].ethers;
     } 
 
+    function depositCollateral(uint256 id) external payable override nonReentrant returns (uint256) {
+        require(_mandates[id].status < LifeCycle.SETTLED, "Can't add collateral to already LifeCycle.SETTLED and beyond");
+
+        _mandates[id].collatEthers += msg.value;
+
+        emit DepositCollateral(id, msg.value);
+
+        return _mandates[id].collatEthers;
+
+    }
     event CreateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event PopulateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event SubmitMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
@@ -125,5 +140,6 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
     event StartMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event CloseMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event CancelMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
-    event TopUpMandate(uint256 id, uint256 amount);
+    event DepositMandate(uint256 id, uint256 amount);
+    event DepositCollateral(uint256 id, uint256 amount);
 }
