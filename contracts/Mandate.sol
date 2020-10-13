@@ -1,31 +1,12 @@
 pragma solidity ^0.6.6;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
+import "./AMandate.sol";
 
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract MandateBook is Ownable, ReentrancyGuard {
-
-    enum LifeCycle {
-        EMPTY, 
-        POPULATED, 
-        SUBMITTED, 
-        ACCEPTED, 
-        STARTED, 
-        STOPPEDOUT, 
-        CLOSED
-    }
-    struct Mandate {
-        uint256 ethers;
-        LifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
-        address investor;
-        address manager;
-        uint256 duration;
-        uint16 takeProfit;
-        uint16 stopLoss;
-    }
+contract Mandate is AMandate, Ownable {
 
     address private _manager; //TODO REDO to list
     Mandate[] private _mandates;
@@ -46,6 +27,13 @@ contract MandateBook is Ownable, ReentrancyGuard {
     constructor() public {
         _init();        
     }
+    function getStatus(uint id) external returns (AMandate.LifeCycle) {
+        return _mandates[id].status;
+    }
+
+    function getMandate(uint id) external returns (AMandate.Mandate memory mandate) {
+        return _mandates[id];
+    }
 
     function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable nonReentrant returns(uint256 id) {
 
@@ -65,7 +53,7 @@ contract MandateBook is Ownable, ReentrancyGuard {
         emit CreateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
         
     }
-    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable nonReentrant onlyInvestor(id) {
+    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable nonReentrant onlyInvestor(id) {
         // validations
         require(_mandates[id].status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
         
@@ -83,35 +71,35 @@ contract MandateBook is Ownable, ReentrancyGuard {
         emit PopulateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
     }
 
-    function submitMandate(uint256 id) public onlyInvestor(id) {
+    function submitMandate(uint256 id) external onlyInvestor(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.SUBMITTED;
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function acceptMandate(uint256 id) public onlyFundManager(id) {
+    function acceptMandate(uint256 id) external onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.ACCEPTED;
         // event emissions
         emit AcceptMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function startMandate(uint256 id) public onlyFundManager(id) {
+    function startMandate(uint256 id) external onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.STARTED;
         // event emissions
         emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function closeMandate(uint256 id) public onlyFundManager(id) {
+    function closeMandate(uint256 id) external onlyFundManager(id) {
         // validations
         // actions
         // event emissions
         emit CloseMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
 
     }
-    function cancelMandate(uint256 id) public onlyFundManager(id) {
+    function cancelMandate(uint256 id) external onlyFundManager(id) {
         // validations
         // actions
         // event emissions
