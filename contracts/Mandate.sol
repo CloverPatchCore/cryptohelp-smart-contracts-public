@@ -1,26 +1,11 @@
 pragma solidity ^0.6.6;
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./AMandate.sol";
 
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract Mandate is Ownable {
-
-    enum LifeCycle {
-        EMPTY, 
-        POPULATED, 
-        SUBMITTED, 
-        ACCEPTED, 
-        STARTED, 
-        STOPPEDOUT, 
-        CLOSED
-    }
-    struct Deal {
-        LifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
-        address targetManager;
-        uint16 takeProfit;
-        uint16 stopLoss;
-    }
+contract Mandate is AMandate, Ownable {
 
     address private _manager;
     Deal private _deal;
