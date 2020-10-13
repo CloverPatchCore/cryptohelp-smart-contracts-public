@@ -1,12 +1,14 @@
 pragma solidity ^0.6.6;
+pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./AMandate.sol";
+import "./IMandate.sol";
 
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract Mandate is AMandate, Ownable {
+contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
 
     address private _manager; //TODO REDO to list
     Mandate[] private _mandates;
@@ -27,19 +29,19 @@ contract Mandate is AMandate, Ownable {
     constructor() public {
         _init();        
     }
-    function getStatus(uint id) external returns (AMandate.LifeCycle) {
+    function getStatus(uint id) external override returns (AMandate.LifeCycle) {
         return _mandates[id].status;
     }
 
-    function getMandate(uint id) external returns (AMandate.Mandate memory mandate) {
+    function getMandate(uint id) external override returns (AMandate.Mandate memory mandate) {
         return _mandates[id];
     }
 
-    function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable nonReentrant returns(uint256 id) {
+    function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable override nonReentrant returns(uint256 id) {
 
         Mandate memory m = Mandate({
-            ethers: 0,
             status: LifeCycle.POPULATED,
+            ethers: 0,
             investor: msg.sender,
             manager: manager,
             duration: duration,
@@ -53,7 +55,7 @@ contract Mandate is AMandate, Ownable {
         emit CreateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
         
     }
-    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable nonReentrant onlyInvestor(id) {
+    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable override nonReentrant onlyInvestor(id) {
         // validations
         require(_mandates[id].status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
         
@@ -71,14 +73,14 @@ contract Mandate is AMandate, Ownable {
         emit PopulateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
     }
 
-    function submitMandate(uint256 id) external onlyInvestor(id) {
+    function submitMandate(uint256 id) external override onlyInvestor(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.SUBMITTED;
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function acceptMandate(uint256 id) external onlyFundManager(id) {
+    function acceptMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.ACCEPTED;
@@ -92,14 +94,14 @@ contract Mandate is AMandate, Ownable {
         // event emissions
         emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function closeMandate(uint256 id) external onlyFundManager(id) {
+    function closeMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
         // event emissions
         emit CloseMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
 
     }
-    function cancelMandate(uint256 id) external onlyFundManager(id) {
+    function cancelMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
         // event emissions

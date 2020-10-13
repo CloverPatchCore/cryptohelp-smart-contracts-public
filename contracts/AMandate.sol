@@ -16,6 +16,7 @@ contract AMandate {
         uint256 ethers;
         address investor;
         address manager;
+        uint256 duration;
         uint16 takeProfit;
         uint16 stopLoss;
     }

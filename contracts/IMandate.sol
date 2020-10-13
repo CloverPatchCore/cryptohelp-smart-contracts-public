@@ -14,7 +14,7 @@ interface IMandate {
 
     function closeMandate(uint id) external;
 
-    function createMandate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable;
+    function createMandate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable returns(uint256 id);
 
     function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable;
 
