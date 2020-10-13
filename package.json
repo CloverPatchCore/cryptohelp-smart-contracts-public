@@ -1,0 +1,23 @@
+{
+  "name": "cryptohelp-smart-contracts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://ciapotti@github.com/crypto-help/cryptohelp-smart-contracts.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/crypto-help/cryptohelp-smart-contracts/issues"
+  },
+  "homepage": "https://github.com/crypto-help/cryptohelp-smart-contracts#readme",
+  "dependencies": {
+    "@openzeppelin/contracts": "^3.2.0",
+    "truffle": "^5.1.48"
+  }
+}
