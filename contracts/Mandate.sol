@@ -36,23 +36,52 @@ contract Mandate is Ownable {
         _init();        
     }
     function populateDeal(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable onlyOwner {
-        _populateDeal(targetManager, duration, takeProfit, stopLoss);
+        // validations
+        require(_deal.status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
+        // actions
+        _deal.status = LifeCycle.POPULATED;
+        _deal.targetManager = targetManager;
+        _deal.duration = duration;
+        _deal.targetManager = takeProfit;
+        _deal.stopLoss = stopLoss;
+        
+        // event emissions
+        emit PopulateDeal(targetManager, duration, takeProfit, stopLoss);
     }
 
-    function submitDeal() public onlyOwner {}
-    function acceptDeal() public onlyFundManager {}
-    function startDeal() public onlyFundManager {}
-    function closeDeal() public onlyFundManager {}
-    function cancelDeal() public onlyFundManager {}
-
-    function _populateDeal(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) private {
-        require(_deal.status < LifeCycle.ACCEPTED, "The deal is too far in the lifecycle to amend it");
-        //TODO assign values here
+    function submitDeal() public onlyOwner {
+        // validations
+        // actions
+        _deal.status = LifeCycle.SUBMITTED;
+        // event emissions
+        emit SubmitDeal(_deal.targetManager, _deal.duration, _deal.takeProfit, _deal.stopLoss);
     }
+    function acceptDeal() public onlyFundManager {
+        // validations
+        // actions
+        // event emissions
+    }
+    function startDeal() public onlyFundManager {
+        // validations
+        // actions
+        // event emissions
+    }
+    function closeDeal() public onlyFundManager {
+        // validations
+        // actions
+        // event emissions
+
+    }
+    function cancelDeal() public onlyFundManager {
+        // validations
+        // actions
+        // event emissions
+    }
+
     function _init() private {}
 
-    event PopulateDeal();
-    event SubmitDeal();
+    event PopulateDeal(address indexed targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    event SubmitDeal(address indexed targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     event AcceptDeal();
     event StartDeal();
     event CloseDeal();
