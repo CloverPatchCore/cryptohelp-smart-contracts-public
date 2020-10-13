@@ -3,7 +3,7 @@ pragma experimental ABIEncoderV2;
 
 import "./AMandate.sol";
 
-interface IMandate {
+interface IMandateBook {
     function getStatus(uint id) external returns (AMandate.LifeCycle status);
 
     function getMandate(uint id) external returns (AMandate.Mandate memory mandate);

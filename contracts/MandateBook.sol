@@ -3,7 +3,7 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./AMandate.sol";
-import "./IMandate.sol";
+import "./IMandateBook.sol";
 
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
