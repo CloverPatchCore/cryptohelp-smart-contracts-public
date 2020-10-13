@@ -80,14 +80,14 @@ contract Mandate is IMandate, AMandate, Ownable, ReentrancyGuard {
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function acceptMandate(uint256 id) external override onlyFundManager(id) {
+    function acceptMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.ACCEPTED;
         // event emissions
         emit AcceptMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
-    function startMandate(uint256 id) external onlyFundManager(id) {
+    function startMandate(uint256 id) external payable onlyFundManager(id) {
         // validations
         // actions
         _mandates[id].status = LifeCycle.STARTED;

@@ -8,15 +8,17 @@ interface IMandateBook {
 
     function getMandate(uint id) external returns (AMandate.Mandate memory mandate);
 
-    function acceptMandate(uint id) external;
+    function acceptMandate(uint id) external payable; // accepts collateral from fund manager
 
     function cancelMandate(uint id) external;
 
+    function startMandate(uint id) external payable; // accepts collateral from fund manager
+
     function closeMandate(uint id) external;
 
-    function createMandate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable returns(uint256 id);
+    function createMandate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable returns(uint256 id); //accepts investment funds from investor
 
-    function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable;
+    function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable; //accepts investment funds from investor
 
     function submitMandate(uint id) external;
 }
