@@ -8,7 +8,7 @@ import "./IMandateBook.sol";
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract Mandate is IMandateBook, AMandate, Ownable, ReentrancyGuard {
+contract MandateBook is IMandateBook, AMandate, Ownable, ReentrancyGuard {
 
     address private _manager; //TODO REDO to list
     Mandate[] private _mandates;

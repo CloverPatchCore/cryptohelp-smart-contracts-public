@@ -1,6 +1,6 @@
 pragma solidity ^0.6.6;
 
-contract AMandate {
+abstract contract AMandate {
     enum LifeCycle {
         EMPTY,
         POPULATED,
