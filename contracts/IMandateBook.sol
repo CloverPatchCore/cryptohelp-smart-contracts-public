@@ -25,6 +25,4 @@ interface IMandateBook {
     function depositMandate(uint256 id) external payable returns (uint256 finalMandateBalance);
 
     function depositCollateral(uint256 id) external payable returns (uint256 finalCollateralBalance);
-
-    
 }
