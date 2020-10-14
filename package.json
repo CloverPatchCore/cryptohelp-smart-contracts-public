@@ -19,10 +19,12 @@
   "homepage": "https://github.com/crypto-help/cryptohelp-smart-contracts#readme",
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
-    "truffle": "^5.1.48",
-    "solhint": "^3.2.0"
+    "app-root-path": "^3.0.0",
+    "solhint": "^3.2.0",
+    "truffle": "^5.1.48"
   },
   "devDependencies": {
+    "@openzeppelin/test-helpers": "^0.5.7",
     "ethlint": "^1.2.5"
   }
 }
