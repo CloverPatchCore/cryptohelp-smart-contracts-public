@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "truffle test",
+    "lint": "solhint contracts/*.sol"
   },
   "repository": {
     "type": "git",
@@ -18,6 +19,10 @@
   "homepage": "https://github.com/crypto-help/cryptohelp-smart-contracts#readme",
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
-    "truffle": "^5.1.48"
+    "truffle": "^5.1.48",
+    "solhint": "^3.2.0"
+  },
+  "devDependencies": {
+    "ethlint": "^1.2.5"
   }
 }
