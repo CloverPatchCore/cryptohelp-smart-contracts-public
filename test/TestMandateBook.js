@@ -19,7 +19,7 @@ contract('MandateBook', (accounts) => {
     //
   });
 
-  describe('Investor Steps', async () => {
+  describe('Mandate LifeCycle Steps', async () => {
     it('Investor should be able to create a Mandate', async () => {
       //
     });
@@ -27,6 +27,8 @@ contract('MandateBook', (accounts) => {
     it('Investor should be able to submit a Mandate to a Manager');
     it('Manager should be able to accept the Mandate appointed by the Investor');
     it('Manager should be able to decline the Mandate appointed by the Investor');
+    it('Investor should be able to deposit ethers to the Mandate before it\'s started');
+    it('Manager should be able to deposit ethers as coollateral to the Mandate before it\'s started');
     it('Manager should be able to start the Mandate that they accepted before');
     it('Manager should be able to start the Mandate submitted to them by Investor');
     it('Manager should be able to close in profit Mandate');
@@ -36,4 +38,5 @@ contract('MandateBook', (accounts) => {
     it('Investor should be able to settle the deal distributing the earnings');
 
   });
+  describe('Access Violations Checks', async () => {});
 })
