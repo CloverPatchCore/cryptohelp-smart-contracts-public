@@ -18,12 +18,12 @@ abstract contract AMandate {
         address baseCoin; // address of a (stable)coin for settlement; assumed IERC20 interface
         uint8 targetReturnRate; // the rate of return aimed at by Manager
         uint8 maxCollateralRateIfAvailable; // maximum percentage of collateral offered by Manager in case if the collateral is still available based on FCFS basis
-        uint256 collatAmount; // absolute collateral balance in baseCoin
-        uint256 committedCapital; // absolute amount of capital committed to this Agreement (usually made through Mandates)
+        uint256 __collatAmount; // absolute collateral balance in baseCoin
+        uint256 __committedCapital; // absolute amount of capital committed to this Agreement (usually made through Mandates)
         uint32 duration; // seconds of duration of an ACTIVE phase of the Agreemenet
         uint32 openPeriod; // seconds of duration of a PUBLISHED period
-        uint256 publishTimestamp; // timestamp when the Agreement was marked as PUBLISHED
         
+        uint256 publishTimestamp; // timestamp when the Agreement was marked as PUBLISHED
         uint8 stat_actualReturnRate; // used to hold the actual results of trading on the Agreement 
         uint8 stat_remainingCollateral; // used to hold the actual results of trading on the Agreement 
         uint8 stat_actualDuration; // used to hold the actual results of trading on the Agreement 
@@ -43,8 +43,8 @@ abstract contract AMandate {
     struct Mandate {
         MandateLifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
         uint256 collatAmount; // collateral amount locked in by fund manager
-        address investor;
+        address investor; // creater of this Mandate, Investor
         uint256 agreement; //reference to an agreementID to which this mandate is committed
-        uint256 committedCapital; // how much capital an Investor has committed; to be updated on the deposit / withdrawal
+        uint256 __committedCapital; // how much capital an Investor has committed; to be updated on the deposit / withdrawal
     }
 }
