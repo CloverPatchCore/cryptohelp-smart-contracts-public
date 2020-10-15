@@ -26,7 +26,9 @@ abstract contract AMandate {
         uint256 publishTimestamp; // timestamp when the Agreement was marked as PUBLISHED
         uint8 stat_actualReturnRate; // used to hold the actual results of trading on the Agreement 
         uint8 stat_remainingCollateral; // used to hold the actual results of trading on the Agreement 
-        uint8 stat_actualDuration; // used to hold the actual results of trading on the Agreement 
+        uint8 stat_actualDuration; // used to hold the actual results of trading on the Agreement
+
+        bool extraStopped; // if investor extra stopped trades by this agreement
     }
 
     enum MandateLifeCycle { // THIS IS WORK-IN-PROGRESS
