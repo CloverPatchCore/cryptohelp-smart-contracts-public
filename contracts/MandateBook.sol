@@ -37,19 +37,22 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     constructor() public {
         _init();        
     }
-    function getStatus(uint id) external override returns (AMandate.LifeCycle) {
-        return _mandates[id].status;
-    }
 
+    // @dev getter for mandate
     function getMandate(uint id) external override returns (AMandate.Mandate memory mandate) {
         return _mandates[id];
+    }
+
+    // @dev getter for agreement
+    function getAgreement(uint id) external override returns (AMandate.Agreement memory agreement) {
+        return _agreements[id];
     }
 
     //TODO to review
     function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable override nonReentrant returns(uint256 id) {
 
         Mandate memory m = Mandate({
-            status: LifeCycle.POPULATED,
+            status: AgreementLifeCycle.POPULATED,
             ethers: 0,
             collatEthers: 0,
             investor: msg.sender,
@@ -69,10 +72,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     //TODO to review
     function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable override nonReentrant onlyInvestor(id) {
         // validations
-        require(_mandates[id].status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
+        require(_mandates[id].status < AgreementLifeCycle.ACCEPTED, "AgreementLifeCycle violation. Can't populate deal beyond AgreementLifeCycle.ACCEPTED");
         
         // actions
-        _mandates[id].status = LifeCycle.POPULATED;
+        _mandates[id].status = AgreementLifeCycle.POPULATED;
         _mandates[id].investor = msg.sender;
         _mandates[id].manager = manager;
         _mandates[id].duration = duration;
@@ -89,7 +92,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function submitMandate(uint256 id) external override onlyInvestor(id) {
         // validations
         // actions
-        _mandates[id].status = LifeCycle.SUBMITTED;
+        _mandates[id].status = AgreementLifeCycle.SUBMITTED;
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
@@ -99,7 +102,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // validations
 
         // actions
-        _mandates[id].status = LifeCycle.ACCEPTED;
+        _mandates[id].status = AgreementLifeCycle.ACCEPTED;
         if (msg.value > 0) this.depositCollateral(id);
         (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
         if(!isSufficientCollateral) emit WaitForMoreCollateral(id, outstanding);
@@ -115,8 +118,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function startMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
         // assumed it's ok to start straight from the submitted or from the accepted state
-        // LifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
-        require(LifeCycle.SUBMITTED == _mandates[id].status || LifeCycle.ACCEPTED == _mandates[id].status, "Can only start LifeCycle.SUBMITTED or LifeCycle.ACCEPTED");
+        // AgreementLifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
+        require(AgreementLifeCycle.SUBMITTED == _mandates[id].status || AgreementLifeCycle.ACCEPTED == _mandates[id].status, "Can only start AgreementLifeCycle.SUBMITTED or AgreementLifeCycle.ACCEPTED");
         
         // actions
         if (msg.value > 0) this.depositCollateral(id);
@@ -124,7 +127,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //now, if collateral requirement is not met we will wait for more collateral
         (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
         if(isSufficientCollateral) {
-            _mandates[id].status = LifeCycle.STARTED;
+            _mandates[id].status = AgreementLifeCycle.STARTED;
             emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
         } else {
             emit WaitForMoreCollateral(id, outstanding);
@@ -159,7 +162,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     //TODO to review
     function depositMandate(uint256 id) external payable override nonReentrant onlyInvestor(id) returns (uint256) {
-        require(_mandates[id].status < LifeCycle.ACCEPTED, "Can't add balance on or beyond LifeCycle.ACCEPTED");
+        require(_mandates[id].status < AgreementLifeCycle.ACCEPTED, "Can't add balance on or beyond AgreementLifeCycle.ACCEPTED");
         
         _mandates[id].ethers += msg.value;
         
@@ -170,7 +173,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     //TODO to review
     function depositCollateral(uint256 id) external payable override nonReentrant returns (uint256) {
-        require(_mandates[id].status < LifeCycle.SETTLED, "Can't add collateral to already LifeCycle.SETTLED and beyond");
+        require(_mandates[id].status < AgreementLifeCycle.SETTLED, "Can't add collateral to already AgreementLifeCycle.SETTLED and beyond");
 
         _mandates[id].collatEthers += msg.value;
 
@@ -186,8 +189,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint32 duration,
-        uint32 openPeriod,
-        
+        uint32 openPeriod
     ) external returns (uint256) {
 
         //validations
@@ -224,7 +226,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint32 duration,
-        uint32 openPeriod,
+        uint32 openPeriod
     ) external onlyAgreementManager(id) {
         //validate
 

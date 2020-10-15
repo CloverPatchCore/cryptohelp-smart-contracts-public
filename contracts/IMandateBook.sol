@@ -4,9 +4,9 @@ pragma experimental ABIEncoderV2;
 import "./AMandate.sol";
 
 interface IMandateBook {
-    function getMandateStatus(uint id) external returns (AMandate.MandateLifeCycle status);
+    function getMandate(uint id) external override returns (AMandate.Mandate memory mandate);
 
-    function getMandate(uint id) external returns (AMandate.Mandate memory mandate);
+    function getAgreement(uint id) external returns (AMandate.Agreement memory agreement);
 
     function acceptMandate(uint id) external payable; // accepts collateral from fund manager
 
