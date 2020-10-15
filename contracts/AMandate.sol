@@ -42,7 +42,7 @@ abstract contract AMandate {
 
     struct Mandate {
         MandateLifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
-        uint256 collatAmount; // collateral amount locked in by fund manager
+        uint256 __collatAmount; // collateral amount locked in by fund manager
         address investor; // creater of this Mandate, Investor
         uint256 agreement; //reference to an agreementID to which this mandate is committed
         uint256 __committedCapital; // how much capital an Investor has committed; to be updated on the deposit / withdrawal
