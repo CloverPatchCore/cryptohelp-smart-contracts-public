@@ -69,6 +69,7 @@ contract('MandateBook', (accounts) => {
     it('.. in which case the Mandate is being deleted');
     it('Investor should be able to opt-in to the Agreement by more than one Mandate depositing Capital in Stablecoins');
     it('.. in which case the new Mandate is populated with the new terms based on the FCFS collateral coverage principle');
+    it('Manager cannoot change the terms or decrease collateral on the Agreement');
   });
 
   describe('Agreement Trading Phase', async () => {
@@ -76,7 +77,7 @@ contract('MandateBook', (accounts) => {
   });
 
   describe('Stopped Out Case', async () => {
-    it('Investor should be able to close the Mandate and withdraw the collateral assigned to Mandate');
+    it('Investor should NOT be able to close the Mandate and withdraw the collateral assigned to Mandate');
   });
   describe('Closed In Profit Case', async () => {
     it('???Should the settlement happen earlier by the Manager initiative???')

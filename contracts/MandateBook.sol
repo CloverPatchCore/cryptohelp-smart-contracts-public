@@ -2,6 +2,7 @@ pragma solidity ^0.6.6;
 pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./AMandate.sol";
 import "./IMandateBook.sol";
 
@@ -37,7 +38,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     constructor() public {
         _init();        
     }
-    function getStatus(uint id) external override returns (AMandate.LifeCycle) {
+    function getMandateStatus(uint id) external override returns (AMandate.MandateLifeCycle) {
         return _mandates[id].status;
     }
 
@@ -49,7 +50,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable override nonReentrant returns(uint256 id) {
 
         Mandate memory m = Mandate({
-            status: LifeCycle.POPULATED,
+            status: MandateLifeCycle.POPULATED,
             ethers: 0,
             collatEthers: 0,
             investor: msg.sender,
@@ -69,10 +70,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     //TODO to review
     function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable override nonReentrant onlyInvestor(id) {
         // validations
-        require(_mandates[id].status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
+        require(_mandates[id].status < MandateLifeCycle.ACCEPTED, "MandateLifeCycle violation. Can't populate deal beyond MandateLifeCycle.ACCEPTED");
         
         // actions
-        _mandates[id].status = LifeCycle.POPULATED;
+        _mandates[id].status = MandateLifeCycle.POPULATED;
         _mandates[id].investor = msg.sender;
         _mandates[id].manager = manager;
         _mandates[id].duration = duration;
@@ -89,7 +90,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function submitMandate(uint256 id) external override onlyInvestor(id) {
         // validations
         // actions
-        _mandates[id].status = LifeCycle.SUBMITTED;
+        _mandates[id].status = MandateLifeCycle.SUBMITTED;
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
@@ -99,7 +100,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // validations
 
         // actions
-        _mandates[id].status = LifeCycle.ACCEPTED;
+        _mandates[id].status = MandateLifeCycle.ACCEPTED;
         if (msg.value > 0) this.depositCollateral(id);
         (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
         if(!isSufficientCollateral) emit WaitForMoreCollateral(id, outstanding);
@@ -115,8 +116,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function startMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
         // assumed it's ok to start straight from the submitted or from the accepted state
-        // LifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
-        require(LifeCycle.SUBMITTED == _mandates[id].status || LifeCycle.ACCEPTED == _mandates[id].status, "Can only start LifeCycle.SUBMITTED or LifeCycle.ACCEPTED");
+        // MandateLifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
+        require(MandateLifeCycle.SUBMITTED == _mandates[id].status || MandateLifeCycle.ACCEPTED == _mandates[id].status, "Can only start MandateLifeCycle.SUBMITTED or MandateLifeCycle.ACCEPTED");
         
         // actions
         if (msg.value > 0) this.depositCollateral(id);
@@ -124,7 +125,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //now, if collateral requirement is not met we will wait for more collateral
         (bool isSufficientCollateral, uint256 outstanding) = checkStartCollateralConditions(id);
         if(isSufficientCollateral) {
-            _mandates[id].status = LifeCycle.STARTED;
+            _mandates[id].status = MandateLifeCycle.STARTED;
             emit StartMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
         } else {
             emit WaitForMoreCollateral(id, outstanding);
@@ -159,7 +160,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     //TODO to review
     function depositMandate(uint256 id) external payable override nonReentrant onlyInvestor(id) returns (uint256) {
-        require(_mandates[id].status < LifeCycle.ACCEPTED, "Can't add balance on or beyond LifeCycle.ACCEPTED");
+        require(_mandates[id].status < MandateLifeCycle.ACCEPTED, "Can't add balance on or beyond MandateLifeCycle.ACCEPTED");
         
         _mandates[id].ethers += msg.value;
         
@@ -170,7 +171,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     //TODO to review
     function depositCollateral(uint256 id) external payable override nonReentrant returns (uint256) {
-        require(_mandates[id].status < LifeCycle.SETTLED, "Can't add collateral to already LifeCycle.SETTLED and beyond");
+        require(_mandates[id].status < AgreementLifeCycle.SETTLED, "Can't add collateral to already AgreementLifeCycle.SETTLED and beyond");
 
         _mandates[id].collatEthers += msg.value;
 
@@ -186,7 +187,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint32 duration,
-        uint32 openPeriod,
+        uint32 openPeriod
         
     ) external returns (uint256) {
 
@@ -201,6 +202,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             targetReturnRate: targetReturnRate,
             maxCollateralRateIfAvailable: maxCollateralRateIfAvailable,
             collatAmount: 0,
+            committedCapital: 0, /* initially there's no capital committed  */
             duration: duration,
             openPeriod: openPeriod,
             publishTimestamp: 0,
@@ -216,7 +218,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //return
         return _agreements.length - 1;
     }
-
+    
+    // fill agreement with data
     function populateAgreement(
         uint256 id,
         address baseCoin,
@@ -224,12 +227,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint32 duration,
-        uint32 openPeriod,
+        uint32 openPeriod
     ) external onlyAgreementManager(id) {
+        Agreement memory aa = _agreements[id];
+
         //validate
+        require(aa.status <= AgreementLifeCycle.PUBLISHED, "Too late to change anything at AgreementLifeCycle.PUBLISHED");
 
         //execute
-        Agreement memory aa = _agreements[id];
         aa.baseCoin = baseCoin;
         aa.targetReturnRate = targetReturnRate;
         aa.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
@@ -238,11 +243,16 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.openPeriod = openPeriod;
 
         //TODO NOTE process collatAmount separately through transferFrom
+        //TODO NOTE process collectedCapital separately if it is needed at all at this stage of AgreementlifeCycle
 
         //emit event
         emit PopulateAgreement();
 
         //return
+    }
+
+    function depositCollateral(uint256 id, uint256 amount) external onlyAgreementManager(id) {
+
     }
 
     function publishAgreement(uint256 id)  external onlyAgreementManager(id) {
@@ -255,12 +265,45 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //emit event
         emit PublishAgreement();
+    }
+
+    function commitToAgreement(uint256 id, uint256 amount) external {
+        //validate
+
+        //execute
+        //create a mandate
+        _mandates.push({
+            status: MandateLifeCycle.COMMITTED,
+            investor: msg.sender,
+            agreement: id
+        });
+
+        //TODO manage committed capital through transferFrom
+
+        {
+            require(address(0) != _agreements[id].baseCoin);
+            require(IERC20(_agreements[id].baseCoin).allowance(msg.sender))
+            IERC20(_agreements[id].baseCoin).transferFrom(msg.sender, this.address, amount);
+        }
+        //emit event
 
         //return
     }
 
 
+    /* this should commit the existing mandate to the agreement
+    it should overwrite some parameters in the mandate
+     */
+    function commitToAgreement(uint256 agreementID, uint256 mandateID) external {
+        //validate
 
+        //execute
+
+        //emit event
+
+        //return
+    }
+     
     //TODO to review
     event CreateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     //TODO to review
