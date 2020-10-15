@@ -4,11 +4,12 @@ pragma experimental ABIEncoderV2;
 import "./AMandate.sol";
 
 interface IMandateBook {
-    function getAgreementStatus(uint id) external returns (AMandate.AgreementLifeCycle status);
 
     function getMandate(uint id) external returns (AMandate.Mandate memory mandate);
+    function getMandateStatus(uint id) external returns (AMandate.MandateLifeCycle);
+    
 
-    function acceptMandate(uint id) external payable; // accepts collateral from fund manager
+/*     function acceptMandate(uint id) external payable; // accepts collateral from fund manager
 
     function cancelMandate(uint id) external;
 
@@ -21,10 +22,13 @@ interface IMandateBook {
     function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable; //accepts investment funds from investor
 
     function submitMandate(uint id) external;
+ */
+    function depositCapital(uint256 mandateID, uint256 amount) external payable returns (uint256 finalMandateCapitalBalance);
+    function withdrawCapital(uint256 mandateID, uint256 amount) external payable returns (uint256 finalMandateCapitalBalance);
 
-    function depositCapital(uint256 mandateID) external payable returns (uint256 finalMandateBalance);
-    function withdrawCapital(uint256 mandateID) external payable returns (uint256 finalMandateBalance);
+    function getAgreement(uint id) external returns (AMandate.Agreement memory agreement);
+    function getAgreementStatus(uint id) external returns (AMandate.AgreementLifeCycle status);
 
-    function depositCollateral(uint256 agreementID) external payable returns (uint256 finalCollateralBalance);
-    function withdrawCollateral(uint256 agreementID) external payable returns (uint256 finalCollateralBalance);
+    function depositCollateral(uint256 agreementID, uint256 amount) external payable returns (uint256 finalAgreementCollateralBalance);
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external payable returns (uint256 finalAgreementCollateralBalance);
 }
