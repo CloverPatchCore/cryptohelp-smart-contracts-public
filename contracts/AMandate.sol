@@ -24,7 +24,7 @@ abstract contract AMandate {
         uint256 publishTimestamp;
         
         uint8 stat_actualReturnRate;
-        uint8 stat_remainingCollateral
+        uint8 stat_remainingCollateral;
     }
 
     enum MandateLifeCycle {
