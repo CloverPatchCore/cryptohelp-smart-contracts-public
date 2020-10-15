@@ -10,8 +10,8 @@ import "./IMandateBook.sol";
 
 contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
-    Mandate[] private _mandates;
-    Agreement[] private _agreements;
+    Mandate[] internal _mandates;
+    Agreement[] internal _agreements;
     //data structure designated to holding the info about the mandate
 
     //TODO to review
