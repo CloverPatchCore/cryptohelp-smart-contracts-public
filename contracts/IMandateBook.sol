@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./AMandate.sol";
 
 interface IMandateBook {
-    function getStatus(uint id) external returns (AMandate.LifeCycle status);
+    function getMandateStatus(uint id) external returns (AMandate.MandateLifeCycle status);
 
     function getMandate(uint id) external returns (AMandate.Mandate memory mandate);
 
@@ -25,6 +25,4 @@ interface IMandateBook {
     function depositMandate(uint256 id) external payable returns (uint256 finalMandateBalance);
 
     function depositCollateral(uint256 id) external payable returns (uint256 finalCollateralBalance);
-
-    
 }

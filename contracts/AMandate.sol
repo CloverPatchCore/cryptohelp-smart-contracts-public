@@ -1,23 +1,49 @@
 pragma solidity ^0.6.6;
 
 abstract contract AMandate {
-    enum LifeCycle {
+    enum AgreementLifeCycle {
         EMPTY,
         POPULATED,
-        SUBMITTED,
-        ACCEPTED,
-        STARTED,
+        PUBLISHED,
+        ACTIVE,
         STOPPEDOUT,
         CLOSEDINPROFIT,
+        EXPIRED,
+        SETTLED
+    }
+
+    struct Agreement {
+        AgreementLifeCycle status,
+        address manager,
+        address baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 collatAmount,
+        uint32 duration,
+        uint32 openPeriod,
+        uint256 publishTimestamp,
+        
+        uint8 stat_actualReturnRate,
+        uint8 stat_remainingCollateral
+    }
+
+    enum MandateLifeCycle {
+        EMPTY,
+        POPULATED,
+        PUBLISHED,
+        ACTIVE,
+        STOPPEDOUT,
+        CLOSEDINPROFIT,
+        EXPIRED,
         SETTLED
     }
 
     struct Mandate {
-        LifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
+        MandateLifeCycle status; // lifecycle status transitions to only happen through the functions; no direct setting or changing of the status
         uint256 ethers;
         uint256 collatEthers; // collateral ethers locked in by fund manager
         address investor;
-        address manager;
+        uint256 agreementID;
         uint256 duration;
         uint16 takeProfit;
         uint16 stopLoss;

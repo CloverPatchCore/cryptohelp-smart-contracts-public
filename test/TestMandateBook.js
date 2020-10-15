@@ -41,39 +41,67 @@ contract('MandateBook', (accounts) => {
 -------------------------
 */
 
-  describe('Mandate LifeCycle Steps', async () => {
-    
-    /* ------------------------- */
-    let tx;
+  describe('Agreement Creation Phase', async () => {
 
-    it('Investor should be able to create a Mandate', async () => {
-      /* first transaction to have zero index */
-      tx = await mandateBook.createMandate(
-        MANAGER1 /* investor */, 
-        0 /* TODO set nonzero duration later */, 
-        30/* takeProfit */, 
-        20/* stopLoss */, 
-        {from:INVESTOR1})
-      });
+    it('Manager should be able to create an Agreement with terms', async () => {
+  //    tx = await mandateBook.createAgreement(
+  //       MANAGER1 /* investor */, 
+  //       0 /* TODO set nonzero duration later */, 
+  //       30/* takeProfit */, 
+  //       20/* stopLoss */, 
+  //       {from:INVESTOR1})
+  //     });
 
-    it('.. emitting the CreateMandate event', async () => {
-      expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
+  //   it('.. emitting the CreateMandate event', async () => {
+  //     expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
+  //   });
+        
     });
-    
-    it('Investor should be able to populate a Mandate');
-    it('Investor should be able to submit a Mandate to a Manager');
-    it('Manager should be able to accept the Mandate appointed by the Investor');
-    it('Manager should be able to decline the Mandate appointed by the Investor');
-    it('Investor should be able to deposit ethers to the Mandate before it\'s started');
-    it('Manager should be able to deposit ethers as coollateral to the Mandate before it\'s started');
-    it('Manager should be able to start the Mandate that they accepted before');
-    it('Manager should be able to start the Mandate submitted to them by Investor');
-    it('Manager should be able to close in profit Mandate');
-    it('Manager should be able to close through the stoploss');
-    it('Investor should be able to close through the stoploss');
-    it('Manager should be able to settle the deal distributing the earnings');
-    it('Investor should be able to settle the deal distributing the earnings');
-
+    it('Manager should be able to (re)populate an Agreement with terms/edit');
+    it('Manager should be able to deposit collateral in stablecoin to an Agreement');
+    it('Manager should be able to set Agreement as published');
   });
+
+  describe('Agreement Acceptance Phase', async () =>{
+    it('Investor should be able to opt-in to the Agreement by depositing Capital in Stablecoins');
+    it('.. in which case the Mandate is populated with the terms');
+    it('Investor should be able to opt-out and withdraw Capital only before the end of Open Period of the Agreement');
+    it('.. in which case the Mandate is being deleted');
+    it('Investor should be able to opt-in to the Agreement by more than one Mandate depositing Capital in Stablecoins');
+    it('.. in which case the new Mandate is populated with the new terms based on the FCFS collateral coverage principle');
+  });
+
+  describe('Agreement Trading Phase', async () => {
+    it('Manager should be able to trade with Capital on UniSwap');
+  });
+
+  describe('Stopped Out Case', async () => {
+    it('Investor should be able to close the Mandate and withdraw the collateral assigned to Mandate');
+  });
+  describe('Closed In Profit Case', async () => {
+    it('???Should the settlement happen earlier by the Manager initiative???')
+  });
+  describe('Settlement by Expiry Phase', async () => {
+    it('Any of the parties may close all open trading positions on ???all the Mandates of the Agreement ||| their Mandate ??? and do the profit split based on the terms');
+  });
+
+
+    /* ------------------------- */
+  //   let tx;
+
+  //   it('Investor should be able to create a Mandate', async () => {
+  //     /* first transaction to have zero index */
+  //     tx = await mandateBook.createMandate(
+  //       MANAGER1 /* investor */, 
+  //       0 /* TODO set nonzero duration later */, 
+  //       30/* takeProfit */, 
+  //       20/* stopLoss */, 
+  //       {from:INVESTOR1})
+  //     });
+
+  //   it('.. emitting the CreateMandate event', async () => {
+  //     expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
+  //   });
+  // });
   describe('Access Violations Checks', async () => {});
 })

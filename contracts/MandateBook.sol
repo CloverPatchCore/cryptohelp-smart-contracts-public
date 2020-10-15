@@ -10,10 +10,11 @@ import "./IMandateBook.sol";
 
 contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
-    address private _manager; //TODO REDO to list
     Mandate[] private _mandates;
+    Agreement[] private _agreements;
     //data structure designated to holding the info about the mandate
 
+    //TODO to review
     modifier onlyFundManager(uint256 id) {
         require(address(0) != _mandates[id].manager, "Fund Manager not appointed yet");
         require(msg.sender == _mandates[id].manager, "Only appointed Fund Manager");
@@ -26,6 +27,13 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         _;
     }
 
+    modifier onlyAgreementManager(uint256 id) {
+        require(address(0) != _agreements[id].manager, "Agreement Manager not set yet");
+        require(msg.sender == _agreements[id].manager, "Only appointed Fund Manager");
+        _;
+    }
+
+
     constructor() public {
         _init();        
     }
@@ -37,6 +45,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return _mandates[id];
     }
 
+    //TODO to review
     function createMandate(address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable override nonReentrant returns(uint256 id) {
 
         Mandate memory m = Mandate({
@@ -56,6 +65,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit CreateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
         
     }
+
+    //TODO to review
     function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable override nonReentrant onlyInvestor(id) {
         // validations
         require(_mandates[id].status < LifeCycle.ACCEPTED, "LifeCycle violation. Can't populate deal beyond LifeCycle.ACCEPTED");
@@ -74,6 +85,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit PopulateMandate(id, _mandates[id].ethers, msg.sender, manager, duration, takeProfit, stopLoss);
     }
 
+    //TODO to review
     function submitMandate(uint256 id) external override onlyInvestor(id) {
         // validations
         // actions
@@ -81,6 +93,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // event emissions
         emit SubmitMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
     }
+
+    //TODO to review
     function acceptMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
 
@@ -97,6 +111,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     /* Fund manager can collate the mandate in portions through acceptMandate, depositCollateral, 
     however the collaoteral balance after this function should satisfy the stopLoss ratio declared by investor */
+    //TODO to review
     function startMandate(uint256 id) external payable override onlyFundManager(id) {
         // validations
         // assumed it's ok to start straight from the submitted or from the accepted state
@@ -116,11 +131,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         }
         // event emissions
     }
+
+    //TODO to review
     function checkStartCollateralConditions(uint256 id) public view returns(bool check, uint256 outstanding){
         check = _mandates[id].collatEthers * 100 > _mandates[id].ethers * (100 - _mandates[id].stopLoss);
         outstanding = (_mandates[id].ethers * (100 - _mandates[id].stopLoss) - _mandates[id].collatEthers * 100) / 100;
     }
 
+    //TODO to review
     function closeMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
@@ -128,6 +146,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit CloseMandate(id, _mandates[id].ethers, _mandates[id].investor, _mandates[id].manager, _mandates[id].duration, _mandates[id].takeProfit, _mandates[id].stopLoss);
 
     }
+    
+    //TODO to review
     function cancelMandate(uint256 id) external override onlyFundManager(id) {
         // validations
         // actions
@@ -137,6 +157,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     function _init() private {}
 
+    //TODO to review
     function depositMandate(uint256 id) external payable override nonReentrant onlyInvestor(id) returns (uint256) {
         require(_mandates[id].status < LifeCycle.ACCEPTED, "Can't add balance on or beyond LifeCycle.ACCEPTED");
         
@@ -147,6 +168,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return _mandates[id].ethers;
     } 
 
+    //TODO to review
     function depositCollateral(uint256 id) external payable override nonReentrant returns (uint256) {
         require(_mandates[id].status < LifeCycle.SETTLED, "Can't add collateral to already LifeCycle.SETTLED and beyond");
 
@@ -157,14 +179,124 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return _mandates[id].collatEthers;
 
     }
+
+    function createAgreement(
+        address baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 collatAmount,
+        uint32 duration,
+        uint32 openPeriod,
+        
+    ) external returns (uint256) {
+
+        //validations
+
+
+        //actions
+        _agreements.push(Agreement({
+            status: AgreementLifeCycle.POPULATED,
+            manager: msg.sender,
+            baseCoin: baseCoin,
+            targetReturnRate: targetReturnRate,
+            maxCollateralRateIfAvailable: maxCollateralRateIfAvailable,
+            collatAmount: 0,
+            duration: duration,
+            openPeriod: openPeriod,
+            publishTimestamp: 0,
+            
+            stat_actualReturnRate: 0,
+            stat_remainingCollateral: collatAmount
+        }));
+
+        //TODO NOTE process collatAmount separately through transferFrom
+        //emit events
+        emit CreateAgreement();
+
+        //return
+        return _agreements.length - 1;
+    }
+
+    function populateAgreement(
+        uint256 id,
+        address baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 collatAmount,
+        uint32 duration,
+        uint32 openPeriod,
+    ) external onlyAgreementManager(id) {
+        //validate
+
+        //execute
+        Agreement memory aa = _agreements[id];
+        aa.baseCoin = baseCoin;
+        aa.targetReturnRate = targetReturnRate;
+        aa.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
+        //collatAmount processed separately
+        aa.duration = duration;
+        aa.openPeriod = openPeriod;
+
+        //TODO NOTE process collatAmount separately through transferFrom
+
+        //emit event
+        emit PopulateAgreement();
+
+        //return
+    }
+
+    function publishAgreement(uint256 id)  external onlyAgreementManager(id) {
+        //validate
+
+        //execute
+        Agreement memory aa = _agreements[id];
+        aa.status = AgreementLifeCycle.PUBLISHED;
+        publishTimestamp = block.timestamp;
+
+        //emit event
+        emit PublishAgreement();
+
+        //return
+    }
+
+
+
+    //TODO to review
     event CreateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event PopulateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event SubmitMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event AcceptMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event StartMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event CloseMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event CancelMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
+    //TODO to review
     event DepositMandate(uint256 id, uint256 amount);
+    //TODO to review
     event DepositCollateral(uint256 id, uint256 amount);
+    //TODO to review
     event WaitForMoreCollateral(uint256 id, uint256 outstanding);
+
+
+    event CreateAgreement(/* TODO parameters */);
+    event PopulateAgreement(/* TODO parameters */);
+    event PublishAgreement(/* TODO parameters */);
+    
+
 }
+
+/*     function () {
+        //validate
+
+        //execute
+
+        //emit event
+
+        //return
+    }
+ */
