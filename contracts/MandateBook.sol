@@ -200,9 +200,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             extraStopped: false
         }));
 
-        Agreement memory aa = _agreements[_agreements.length - 1];
+        Agreement storage aa = _agreements[_agreements.length - 1];
         uint256 agreementID = _agreements.length - 1;
-        if(collatAmount > 0) _tranferDepositCollateral(agreementID, collatAmount);
+        if(collatAmount > 0) _transferDepositCollateral(agreementID, collatAmount);
         //emit events
         emit CreateAgreement(
             agreementID,
@@ -231,7 +231,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint32 duration,
         uint32 openPeriod
     ) external onlyAgreementManager(id) {
-        Agreement memory aa = _agreements[id];
+        Agreement storage aa = _agreements[id];
 
         //validate
         require(aa.status <= AgreementLifeCycle.PUBLISHED, "Too late to change anything at AgreementLifeCycle.PUBLISHED");
@@ -245,10 +245,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.openPeriod = openPeriod;
 
         if(collatAmount > aa.__collatAmount) {
-            _tranferDepositCollateral(id, collatAmount - aa.__collatAmount);
+            _transferDepositCollateral(id, collatAmount - aa.__collatAmount);
         }
         else if(collatAmount < aa.__collatAmount) {
-            _tranferWithdrawCollateral(id, aa.__collatAmount - collatAmount);
+            _transferWithdrawCollateral(id, aa.__collatAmount - collatAmount);
         }
         //emit event
         emit PopulateAgreement();
@@ -257,22 +257,32 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     function depositCollateral(uint256 agreementID, uint256 amount) external /* payable */ override onlyAgreementManager(agreementID)  returns (uint256 finalAgreementCollateralBalance){
+        require(_agreements.length > agreementID);
+        Agreement storage aa = _agreements[agreementID];
+        require(address(0) != aa.baseCoin);
+        //if(msg.value > 0) processEthers();
+        uint256 transferred = _transferDepositCollateral(agreementID, amount);
 
+        emit DepositCollateral(agreementID, transferred);
+
+        return aa.__collatAmount;
     }
-    function _tranferDepositCollateral(uint256 agreementID, uint256 amount) internal {
-        Agreement memory a = _agreements[agreementID];
+    function _transferDepositCollateral(uint256 agreementID, uint256 amount) internal returns(uint256) {
+        Agreement storage a = _agreements[agreementID];
 
-        __safeTransferFrom(a.baseCoin, msg.sender, address(this), amount);
+        uint256 transferred = __safeTransferFrom(a.baseCoin, msg.sender, address(this), amount);
 
-        a.__collatAmount += amount;
+        a.__collatAmount += transferred;
+
+        return transferred;
     }
 
-    function _tranferWithdrawCollateral(uint256 agreementID, uint256 amount) internal {
-        Agreement memory a = _agreements[agreementID];
+    function _transferWithdrawCollateral(uint256 agreementID, uint256 amount) internal {
+        Agreement storage a = _agreements[agreementID];
 
-        __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
+        uint256 transferred = __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
 
-        a.__collatAmount -= amount;
+        a.__collatAmount -= transferred;
     }
 
     function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ override returns (uint256 finalAgreementCollateralBalance) {}
@@ -285,35 +295,45 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return IERC20(_agreements[agreementID].baseCoin);
     }
 
-    function __safeTransferFrom(address coin, address from, address to, uint256 amount) internal {
+    /* this function does the safe transferFrom per ERC20 standard.
+    It is safe in the way that it will check the balances before and after
+    calling the transferFrom and will revert if the balances don't match.
+    It will also check allowances and will transfer maximum amount allowed
+    in case it is lower than the amount to transfer*/
+    function __safeTransferFrom(address coin, address from, address to, uint256 amount) internal returns(uint256 transferredAmount) {
         IERC20 ierc20 = IERC20(coin);
+        
         uint256 bBeforeFrom = ierc20.balanceOf(from);
         uint256 bBeforeTo = ierc20.balanceOf(to);
 
-        ierc20.transferFrom(from, to, amount);
+        uint256 allowance = ierc20.allowance(from,to);
+        uint256 amountX = amount > allowance ? allowance : amount;
+
+        ierc20.transferFrom(from, to, amountX);
 
         uint256 bAfterFrom = ierc20.balanceOf(from);
         uint256 bAfterTo = ierc20.balanceOf(to);
-        require(bBeforeTo + amount == bAfterTo, "TransferFrom to-address balance mismatch");
-        require(bBeforeFrom - amount == bAfterFrom, "TransferFrom to-address balance mismatch");
+        require(bBeforeTo + amountX == bAfterTo, "TransferFrom to-address balance mismatch");
+        require(bBeforeFrom - amountX == bAfterFrom, "TransferFrom to-address balance mismatch");
+
+        return amountX;
 
     }
     function _transferDepositCapital(uint256 mandateID, uint256 amount) internal returns(uint256 commitedCapitalAfter) {
 
-        Mandate memory m = _mandates[mandateID];
+        Mandate storage m = _mandates[mandateID];
         /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
         /* UPD: still not convinced it's worth keeping the global allowances updated require(IERC20(_agreements[id].baseCoin).allowance(msg.sender) >= amount + _investors[msg.sender].globalAllowances[_agreements[id].baseCoin]); */
         
-        __safeTransferFrom(_agreements[m.agreement].baseCoin, msg.sender, address(this), amount);
+        uint256 transferred = __safeTransferFrom(_agreements[m.agreement].baseCoin, msg.sender, address(this), amount);
 
-        m.__committedCapital += amount;
-        _agreements[m.agreement].__committedCapital += amount;
+        m.__committedCapital += transferred;
+        _agreements[m.agreement].__committedCapital += transferred;
         return m.__committedCapital;
 
     }
     function depositCapital(uint256 mandateID, uint256 amount) external /* payable */ override /* access modifier */  returns (uint256 ) {
-        require(0 != mandateID);
-        require(mandateID <= _mandates.length);
+        require(mandateID < _mandates.length);
         Mandate storage m = _mandates[mandateID];
         require(address(0) != _agreements[m.agreement].baseCoin);
 
@@ -332,7 +352,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //validate
 
         //execute
-        Agreement memory aa = _agreements[id];
+        Agreement storage aa = _agreements[id];
         aa.status = AgreementLifeCycle.PUBLISHED;
         aa.publishTimestamp = block.timestamp;
 
@@ -377,6 +397,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     function getAgreementPublishTimestamp(uint256 id) public view returns(uint256) {
         return _agreements[id].publishTimestamp;
+    }
+
+    function getAgreementCollateral(uint256 id) public view returns(uint256) {
+        return _agreements[id].__collatAmount;
     }
      
     //TODO to review

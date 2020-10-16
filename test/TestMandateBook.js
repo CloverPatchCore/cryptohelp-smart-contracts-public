@@ -37,13 +37,13 @@ contract('MandateBook', (accounts) => {
     mandateBook = await MandateBook.deployed();
 
     // deploy a couple of funny stablecoins to use as capital and collateral
-    bPound = await deployer.deploy(ERC20, {from: MINTER});
-    bYen = await deployer.deploy(ERC20, {from: MINTER});
-    bHryvna = await deployer.deploy(ERC20, {from: MINTER});
+    bPound = await ERC20.new('BPound', 'bLBP', toWei(1_000_000), {from: MINTER});
+    bYen = await ERC20.new('BYen', 'bY', toWei(500_000), {from: MINTER});
+    bHryvna = await ERC20.new('BHryvna', 'bUAH', toWei(250_000), {from: MINTER});
 
-    bPound.transfer(MANAGER1, toWei(100_000), {from:MINTER});
-    bPound.transfer(INVESTOR1, toWei(150_000), {from:MINTER});
-    
+    await bPound.transfer(MANAGER1, toWei(500_000), {from:MINTER});
+    await bPound.transfer(INVESTOR1, toWei(150_000), {from:MINTER});
+
 
   });
 
@@ -59,26 +59,34 @@ contract('MandateBook', (accounts) => {
 
   describe('Agreement Creation Phase', async () => {
     it('Manager should be able to create an Agreement with basic terms', async () => {
-     txA = await mandateBook.createAgreement(
+      //let's have MANAGER1 allow some coins for the MandateBook
+      await bPound.approve(mandateBook.address, toWei(70_000), {from:MANAGER1});
+
+      txA = await mandateBook.createAgreement(
         bPound.address, /* USDT testnet for example TODO change for own mock */
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
-        toWei(0), /* collatAmount */
+        toWei(100_000), /* collatAmount */
         30 * 24 * 3600,  /* duration   */
         7 * 24 * 3600, /* open period */ 
         {from:MANAGER1});
       iA = 0;
       });
 
+    it('.. even with insufficient amount ..', async () => {
+      (await mandateBook.getAgreementCollateral(toBN(0))).should.be.bignumber.eq(toWei(70_000));
+    });
+
+
     it('.. emitting the CreateAgreement event', async () => {
       expectEvent(txA, 'CreateAgreement', 
       {
         agreementID: toBN(iA),
         manager: toChecksumAddress(MANAGER1),
-        baseCoin: toChecksumAddress(bPound),
+        baseCoin: bPound.address,
         targetReturnRate: toBN(30),
         maxCollateralRateIfAvailable: toBN(80),
-        __collatAmount: toBN(0),
+        __collatAmount: toWei(70_000),
         __committedCapital: toBN(0),
         duration: toBN(30 * 24 * 3600),
         openPeriod: toBN(7 * 24 * 3600),
@@ -89,7 +97,19 @@ contract('MandateBook', (accounts) => {
     it('.. and the contract should try take maximum allowance .. ');
     it('.. and the event PendingCollateral to be emitted indicating the remaining amount');
 
-    it('Manager should be able to deposit collateral in stablecoin to an Agreement');
+    it('Manager should be able to make more deposits of collateral in stablecoin to an Agreement, for example one with sufficient allowance', async () => {
+      //let's approve some more funds and try to deposit twice
+      await bPound.approve(mandateBook.address, toWei(150_000), {from:MANAGER1});
+    });
+    it('and one more with insufficient allowance of 50_000', async () => {
+      //additional 100_000 collateral commitment this time
+      await mandateBook.depositCollateral(toBN(0), toWei(100_000), {from:MANAGER1});
+      //Manager will try to put 100_000, out of which 50_000 pass through
+    });
+    it('.. thus the total collateral should end up being 70k+100k+50K = 220k', async () => {
+      await mandateBook.depositCollateral(toBN(0), toWei(100_000), {from:MANAGER1});
+      (await mandateBook.getAgreementCollateral(toBN(0))).should.be.bignumber.eq(toWei(220_000));
+    }); 
         
     it('Manager should be able to (re)populate an Agreement with terms/edit');
     it('.. whereas if the new collateral value is reduced, the collateral difference is being returned back on Manager ERC20 coin address');
