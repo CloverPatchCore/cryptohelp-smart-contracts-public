@@ -23,12 +23,12 @@ interface IMandateBook {
 
     function submitMandate(uint id) external;
  */
-    function depositCapital(uint256 mandateID, uint256 amount) external payable returns (uint256 finalMandateCapitalBalance);
-    function withdrawCapital(uint256 mandateID, uint256 amount) external payable returns (uint256 finalMandateCapitalBalance);
+    function depositCapital(uint256 mandateID, uint256 amount) external /* payable */ returns (uint256 finalMandateCapitalBalance);
+    function withdrawCapital(uint256 mandateID, uint256 amount) external /* payable */ returns (uint256 finalMandateCapitalBalance);
 
     function getAgreement(uint id) external returns (AMandate.Agreement memory agreement);
     function getAgreementStatus(uint id) external returns (AMandate.AgreementLifeCycle status);
 
-    function depositCollateral(uint256 agreementID, uint256 amount) external payable returns (uint256 finalAgreementCollateralBalance);
-    function withdrawCollateral(uint256 agreementID, uint256 amount) external payable returns (uint256 finalAgreementCollateralBalance);
+    function depositCollateral(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 finalAgreementCollateralBalance);
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 finalAgreementCollateralBalance);
 }

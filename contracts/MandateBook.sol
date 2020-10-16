@@ -45,7 +45,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     //TODO to review
-/*     function createMandate(uint256 manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public payable override nonReentrant returns(uint256 id) {
+/*     function createMandate(uint256 manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) public  override nonReentrant returns(uint256 id) {
 
         Mandate memory m = Mandate({
             status: MandateLifeCycle.POPULATED,
@@ -64,7 +64,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
  */
  /* 
     //TODO to review
-    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable override nonReentrant onlyMandateInvestor(id) {
+    function populateMandate(uint256 id, address manager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external  override nonReentrant onlyMandateInvestor(id) {
         // validations
         require(_mandates[id].status < MandateLifeCycle.ACCEPTED, "MandateLifeCycle violation. Can't populate deal beyond MandateLifeCycle.ACCEPTED");
         
@@ -92,7 +92,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     //TODO to review
-    function acceptMandate(uint256 id) external payable override onlyAgreementManager(id) {
+    function acceptMandate(uint256 id) external override onlyAgreementManager(id) {
         // validations
 
         // actions
@@ -109,7 +109,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     /* Fund manager can collate the mandate in portions through acceptMandate, depositCollateral, 
     however the collaoteral balance after this function should satisfy the stopLoss ratio declared by investor */
     //TODO to review
-/*    function startMandate(uint256 id) external payable override onlyAgreementManager(id) {
+/*    function startMandate(uint256 id) external override onlyAgreementManager(id) {
         // validations
         // assumed it's ok to start straight from the submitted or from the accepted state
         // MandateLifeCycle.ACCEPTED gives a fund manager a leeway to hold off with the actual start of portfolio management
@@ -156,7 +156,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function _init() private {}
 
     //TODO to review
-/*     function depositMandate(uint256 id) external payable override nonReentrant onlyMandateInvestor(id) returns (uint256) {
+/*     function depositMandate(uint256 id) external override nonReentrant onlyMandateInvestor(id) returns (uint256) {
         require(_mandates[id].status < MandateLifeCycle.ACCEPTED, "Can't add balance on or beyond MandateLifeCycle.ACCEPTED");
         
         _mandates[id].ethers += msg.value;
@@ -189,7 +189,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             baseCoin: baseCoin,
             targetReturnRate: targetReturnRate,
             maxCollateralRateIfAvailable: maxCollateralRateIfAvailable,
-            __collatAmount: 0,
+            __collatAmount: 0, 
             __committedCapital: 0, /* initially there's no capital committed  */
             duration: duration,
             openPeriod: openPeriod,
@@ -201,13 +201,13 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             extraStopped: false
         }));
 
-        //TODO NOTE process collatAmount separately through transferFrom
-        collatAmount;
+        uint256 agreementID = _agreements.length - 1;
+        if(collatAmount > 0) _tranferDepositCollateral(agreementID, collatAmount);
         //emit events
         emit CreateAgreement();
 
         //return
-        return _agreements.length - 1;
+        return agreementID;
     }
     
     // fill agreement with data
@@ -233,44 +233,89 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.duration = duration;
         aa.openPeriod = openPeriod;
 
-        //TODO NOTE process collatAmount separately through transferFrom
-        collatAmount;
-        //TODO NOTE process collectedCapital separately if it is needed at all at this stage of AgreementlifeCycle
-
+        if(collatAmount > aa.__collatAmount) {
+            _tranferDepositCollateral(id, collatAmount - aa.__collatAmount);
+        }
+        else if(collatAmount < aa.__collatAmount) {
+            _tranferWithdrawCollateral(id, aa.__collatAmount - collatAmount);
+        }
         //emit event
         emit PopulateAgreement();
 
         //return
     }
 
-    function depositCollateral(uint256 agreementID, uint256 amount) external payable override onlyAgreementManager(agreementID)  returns (uint256 finalAgreementCollateralBalance){
+    function depositCollateral(uint256 agreementID, uint256 amount) external /* payable */ override onlyAgreementManager(agreementID)  returns (uint256 finalAgreementCollateralBalance){
 
     }
-    function withdrawCollateral(uint256 agreementID, uint256 amount) external payable override returns (uint256 finalAgreementCollateralBalance) {}
+    function _tranferDepositCollateral(uint256 agreementID, uint256 amount) internal {
+        Agreement memory a = _agreements[agreementID];
+
+        __safeTransferFrom(a.baseCoin, msg.sender, address(this), amount);
+
+        a.__collatAmount += amount;
+    }
+
+    function _tranferWithdrawCollateral(uint256 agreementID, uint256 amount) internal {
+        Agreement memory a = _agreements[agreementID];
+
+        __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
+
+        a.__collatAmount -= amount;
+    }
+
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ override returns (uint256 finalAgreementCollateralBalance) {}
 
     function processEthers() pure internal {
         revert();//TODO critical to implement proce
     }
 
-    function depositCapital(uint256 mandateID, uint256 amount) external payable override /* access modifier */  returns (uint256 ) {
-            require(0 != mandateID);
-            require(mandateID <= _mandates.length);
-            Mandate storage m = _mandates[mandateID];
-            require(address(0) != _agreements[m.agreement].baseCoin);
+    function bERC20(uint256 agreementID) private view returns (IERC20) {
+        return IERC20(_agreements[agreementID].baseCoin);
+    }
 
-            if(msg.value > 0) processEthers();
-            /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
-            /* UPD: still not convinced it's worth keeping the global allowances updated require(IERC20(_agreements[id].baseCoin).allowance(msg.sender) >= amount + _investors[msg.sender].globalAllowances[_agreements[id].baseCoin]); */
+    function __safeTransferFrom(address coin, address from, address to, uint256 amount) internal {
+        IERC20 ierc20 = IERC20(coin);
+        uint256 bBeforeFrom = ierc20.balanceOf(from);
+        uint256 bBeforeTo = ierc20.balanceOf(to);
 
-            IERC20(_agreements[m.agreement].baseCoin).transferFrom(msg.sender, address(this), amount);
-            m.__committedCapital += amount;
-            _agreements[m.agreement].__committedCapital += amount;
+        ierc20.transferFrom(from, to, amount);
 
-            emit DepositCapital(mandateID, amount);
-            return m.__committedCapital;
-        }
+        uint256 bAfterFrom = ierc20.balanceOf(from);
+        uint256 bAfterTo = ierc20.balanceOf(to);
+        require(bBeforeTo + amount == bAfterTo, "TransferFrom to-address balance mismatch");
+        require(bBeforeFrom - amount == bAfterFrom, "TransferFrom to-address balance mismatch");
 
-    function withdrawCapital(uint256 mandateID, uint256 amount) external payable override returns (uint256 finalMandateCapitalBalance) {}
+    }
+    function _transferDepositCapital(uint256 mandateID, uint256 amount) internal returns(uint256 commitedCapitalAfter) {
+
+        Mandate memory m = _mandates[mandateID];
+        /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
+        /* UPD: still not convinced it's worth keeping the global allowances updated require(IERC20(_agreements[id].baseCoin).allowance(msg.sender) >= amount + _investors[msg.sender].globalAllowances[_agreements[id].baseCoin]); */
+        
+        __safeTransferFrom(_agreements[m.agreement].baseCoin, msg.sender, address(this), amount);
+
+        m.__committedCapital += amount;
+        _agreements[m.agreement].__committedCapital += amount;
+        return m.__committedCapital;
+
+    }
+    function depositCapital(uint256 mandateID, uint256 amount) external /* payable */ override /* access modifier */  returns (uint256 ) {
+        require(0 != mandateID);
+        require(mandateID <= _mandates.length);
+        Mandate storage m = _mandates[mandateID];
+        require(address(0) != _agreements[m.agreement].baseCoin);
+
+        //if(msg.value > 0) processEthers();
+
+        _transferDepositCapital(mandateID, amount);
+
+        emit DepositCapital(mandateID, amount);
+        return m.__committedCapital;
+    }
+
+
+    function withdrawCapital(uint256 mandateID, uint256 amount) external override returns (uint256 finalMandateCapitalBalance) {}
 
     function publishAgreement(uint256 id)  external onlyAgreementManager(id) {
         //validate
@@ -284,7 +329,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit PublishAgreement();
     }
 
-    function commitToAgreement(uint256 agreementID, uint256 amount) external payable returns (uint256 mandateID) {
+    function commitToAgreement(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 mandateID) {
         //validate
 
         //execute
