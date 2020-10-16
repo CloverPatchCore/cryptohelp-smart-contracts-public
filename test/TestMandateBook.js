@@ -26,9 +26,13 @@ contract('MandateBook', (accounts) => {
   const OUTSIDER = accounts[5];
 
   let mandateBook;
+  let iA;
+  let base1; // base coin #1
+  let txA;
 
   before('setup', async () => {
     mandateBook = await MandateBook.deployed();
+    base1 = "0x6ee856ae55b6e1a249f04cd3b947141bc146273c"
   });
 
   afterEach('revert', async () => {
@@ -42,21 +46,33 @@ contract('MandateBook', (accounts) => {
 */
 
   describe('Agreement Creation Phase', async () => {
-    let txA;
-    it('Manager should be able to create an Agreement with terms', async () => {
+    it('Manager should be able to create an Agreement with basic terms', async () => {
      txA = await mandateBook.createAgreement(
-        "0x6ee856ae55b6e1a249f04cd3b947141bc146273c", /* USDT testnet for example TODO change for own mock */
+        base1, /* USDT testnet for example TODO change for own mock */
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(0), /* collatAmount */
         30 * 24 * 3600,  /* duration   */
         7 * 24 * 3600, /* open period */ 
-        {from:INVESTOR1})
+        {from:MANAGER1});
+      iA = 0;
       });
 
-     /* it('.. emitting the CreateMandate event', async () => {
-      expectEvent(txA, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
-    });  */
+    it('.. emitting the CreateAgreement event', async () => {
+      expectEvent(txA, 'CreateAgreement', 
+      {
+        agreementID: toBN(iA),
+        manager: toChecksumAddress(MANAGER1),
+        baseCoin: toChecksumAddress(base1),
+        targetReturnRate: toBN(30),
+        maxCollateralRateIfAvailable: toBN(80),
+        __collatAmount: toBN(0),
+        __committedCapital: toBN(0),
+        duration: toBN(30 * 24 * 3600),
+        openPeriod: toBN(7 * 24 * 3600),
+        publishTimestamp: toBN(0)
+      });
+    });
     it('.. if the collateral allowance is not approved in the baseCoin ERC20, the Agreement should still be created ..');
     it('.. and the contract should try take maximum allowance .. ');
     it('.. and the event PendingCollateral to be emitted indicating the remaining amount');
@@ -64,9 +80,28 @@ contract('MandateBook', (accounts) => {
     it('Manager should be able to deposit collateral in stablecoin to an Agreement');
         
     it('Manager should be able to (re)populate an Agreement with terms/edit');
-    it(' .. whereas if the new collateral value is reduced, the collateral difference is being returned back on Manager ERC20 coin address');
-    it('Manager should be able to set Agreement as published');
-  });
+    it('.. whereas if the new collateral value is reduced, the collateral difference is being returned back on Manager ERC20 coin address');
+    it('Manager should be able to set Agreement as published', async () => {
+      txA = await mandateBook.publishAgreement(toBN(0), {from: MANAGER1});
+
+    });
+/*     it('.. emitting PublishAgreement Event', async () => {
+      var theblock = await web3.eth.getBlock(txA.blockNumber.toString);
+      expectEvent(txA, 'PublishAgreement', 
+      {
+        agreementID: toBN(0),
+        manager: toChecksumAddress(MANAGER1),
+        baseCoin: toChecksumAddress(base1),
+        targetReturnRate: toBN(30),
+        maxCollateralRateIfAvailable: toBN(80),
+        __collatAmount: toBN(0),
+        __committedCapital: toBN(0),
+        duration: toBN(30 * 24 * 3600),
+        openPeriod: toBN(7 * 24 * 3600),
+        publishTimestamp: theblock.timestamp
+      });
+    });
+ */  });
 
   describe('Agreement Acceptance Phase', async () =>{
     it('Investor should be able to opt-in to the Agreement by depositing Capital in Stablecoins');

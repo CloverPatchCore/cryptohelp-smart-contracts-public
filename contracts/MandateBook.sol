@@ -200,7 +200,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             extraStopped: false
         }));
 
-        Agreement memory aa = _agreements[length - 1];
+        Agreement memory aa = _agreements[_agreements.length - 1];
         uint256 agreementID = _agreements.length - 1;
         if(collatAmount > 0) _tranferDepositCollateral(agreementID, collatAmount);
         //emit events
@@ -214,7 +214,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             aa.__committedCapital,
             aa.duration,
             aa.openPeriod,
-            publishTimestamp
+            aa.publishTimestamp
         );
 
         //return
@@ -337,7 +337,18 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.publishTimestamp = block.timestamp;
 
         //emit event
-        emit PublishAgreement();
+        emit PublishAgreement(
+            id,
+            aa.manager,
+            aa.baseCoin,
+            aa.targetReturnRate,
+            aa.maxCollateralRateIfAvailable,
+            aa.__collatAmount,
+            aa.__committedCapital,
+            aa.duration,
+            aa.openPeriod,
+            aa.publishTimestamp
+        );
     }
 
     function commitToAgreement(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 mandateID) {
@@ -362,6 +373,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit CommitToAgreement();
 
         //return
+    }
+
+    function getAgreementPublishTimestamp(uint256 id) public view returns(uint256) {
+        return _agreements[id].publishTimestamp;
     }
      
     //TODO to review
@@ -394,7 +409,17 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint32 openPeriod,
         uint256 publishTimestamp);
     event PopulateAgreement(/* TODO parameters */);
-    event PublishAgreement(/* TODO parameters */);
+    event PublishAgreement(
+        uint256 agreementID,
+        address manager,
+        address baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 __collatAmount,
+        uint256 __committedCapital,
+        uint32 duration,
+        uint32 openPeriod,
+        uint256 publishTimestamp);
     event CommitToAgreement(/* TODO parameters */);
     
 
