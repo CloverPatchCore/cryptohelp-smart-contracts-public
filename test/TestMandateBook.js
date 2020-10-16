@@ -44,17 +44,19 @@ contract('MandateBook', (accounts) => {
   describe('Agreement Creation Phase', async () => {
 
     it('Manager should be able to create an Agreement with terms', async () => {
-  //    tx = await mandateBook.createAgreement(
-  //       MANAGER1 /* investor */, 
-  //       0 /* TODO set nonzero duration later */, 
-  //       30/* takeProfit */, 
-  //       20/* stopLoss */, 
-  //       {from:INVESTOR1})
-  //     });
+     tx = await mandateBook.createAgreement(
+        0x6ee856ae55b6e1a249f04cd3b947141bc146273c, /* USDT testnet for example TODO change for own mock */
+        30, /* targetReturnRate */
+        80, /* maxCollateralRateIfAvailable */
+        toWei(800), /* collatAmount */
+        30 * 24 * 3600,  /* duration   */
+        7 * 24 * 3600, /* open period */ 
+        {from:INVESTOR1})
+      });
 
-  //   it('.. emitting the CreateMandate event', async () => {
-  //     expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
-  //   });
+/*     it('.. emitting the CreateMandate event', async () => {
+      expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
+    }); */
         
     });
     it('Manager should be able to (re)populate an Agreement with terms/edit');
@@ -72,6 +74,8 @@ contract('MandateBook', (accounts) => {
     it('Manager cannot change the terms or decrease collateral on the Agreement');
     it('Manager should be able to withdraw the Agreement whatsoever');
     it('.. in which case Investors can withdraw their Committed Capital');
+    // FTF
+    // it('ability to set the limit on capital accepted');
   });
 
   describe('Agreement Trading Phase', async () => {
