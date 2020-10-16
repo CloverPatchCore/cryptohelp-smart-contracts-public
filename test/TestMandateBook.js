@@ -58,7 +58,6 @@ contract('MandateBook', (accounts) => {
       expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
     }); */
         
-    });
     it('Manager should be able to (re)populate an Agreement with terms/edit');
     it('Manager should be able to deposit collateral in stablecoin to an Agreement');
     it('Manager should be able to set Agreement as published');
