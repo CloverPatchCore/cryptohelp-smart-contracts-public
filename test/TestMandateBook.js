@@ -1,4 +1,5 @@
 const MandateBook = artifacts.require('./MandateBook');
+const ERC20 = artifacts.require('./MockERC20');
 const _require = require("app-root-path").require;
 const BlockchainCaller = _require("/utils/blockchain_caller");
 
@@ -24,15 +25,26 @@ contract('MandateBook', (accounts) => {
   const MANAGER1 = accounts[3];
   const MANAGER2 = accounts[4];
   const OUTSIDER = accounts[5];
+  const MINTER = accounts[6];
 
   let mandateBook;
   let iA;
-  let base1; // base coin #1
   let txA;
+
+  let bPound, bYen, bHryvna;
 
   before('setup', async () => {
     mandateBook = await MandateBook.deployed();
-    base1 = "0x6ee856ae55b6e1a249f04cd3b947141bc146273c"
+
+    // deploy a couple of funny stablecoins to use as capital and collateral
+    bPound = await deployer.deploy(ERC20, {from: MINTER});
+    bYen = await deployer.deploy(ERC20, {from: MINTER});
+    bHryvna = await deployer.deploy(ERC20, {from: MINTER});
+
+    bPound.transfer(MANAGER1, toWei(100_000), {from:MINTER});
+    bPound.transfer(INVESTOR1, toWei(150_000), {from:MINTER});
+    
+
   });
 
   afterEach('revert', async () => {
@@ -48,7 +60,7 @@ contract('MandateBook', (accounts) => {
   describe('Agreement Creation Phase', async () => {
     it('Manager should be able to create an Agreement with basic terms', async () => {
      txA = await mandateBook.createAgreement(
-        base1, /* USDT testnet for example TODO change for own mock */
+        bPound.address, /* USDT testnet for example TODO change for own mock */
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(0), /* collatAmount */
@@ -63,7 +75,7 @@ contract('MandateBook', (accounts) => {
       {
         agreementID: toBN(iA),
         manager: toChecksumAddress(MANAGER1),
-        baseCoin: toChecksumAddress(base1),
+        baseCoin: toChecksumAddress(bPound),
         targetReturnRate: toBN(30),
         maxCollateralRateIfAvailable: toBN(80),
         __collatAmount: toBN(0),
