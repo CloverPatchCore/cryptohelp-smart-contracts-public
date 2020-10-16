@@ -69,7 +69,9 @@ contract('MandateBook', (accounts) => {
     it('.. in which case the Mandate is being deleted');
     it('Investor should be able to opt-in to the Agreement by more than one Mandate depositing Capital in Stablecoins');
     it('.. in which case the new Mandate is populated with the new terms based on the FCFS collateral coverage principle');
-    it('Manager cannoot change the terms or decrease collateral on the Agreement');
+    it('Manager cannot change the terms or decrease collateral on the Agreement');
+    it('Manager should be able to withdraw the Agreement whatsoever');
+    it('.. in which case Investors can withdraw their Committed Capital');
   });
 
   describe('Agreement Trading Phase', async () => {
