@@ -19,11 +19,12 @@
   "homepage": "https://github.com/crypto-help/cryptohelp-smart-contracts#readme",
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
-    "app-root-path": "^3.0.0",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
-    "solhint": "^3.2.0",
-    "truffle": "^5.1.48"
+    "app-root-path": "^3.0.0",
+    "ganache-time-traveler": "^1.0.15",
+    "solhint": "^3.2.2",
+    "truffle": "^5.1.49"
   },
   "devDependencies": {
     "@openzeppelin/test-helpers": "^0.5.7",
