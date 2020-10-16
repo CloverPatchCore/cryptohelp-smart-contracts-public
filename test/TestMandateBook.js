@@ -42,24 +42,29 @@ contract('MandateBook', (accounts) => {
 */
 
   describe('Agreement Creation Phase', async () => {
-
+    let txA;
     it('Manager should be able to create an Agreement with terms', async () => {
-     tx = await mandateBook.createAgreement(
-        0x6ee856ae55b6e1a249f04cd3b947141bc146273c, /* USDT testnet for example TODO change for own mock */
+     txA = await mandateBook.createAgreement(
+        "0x6ee856ae55b6e1a249f04cd3b947141bc146273c", /* USDT testnet for example TODO change for own mock */
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
-        toWei(800), /* collatAmount */
+        toWei(0), /* collatAmount */
         30 * 24 * 3600,  /* duration   */
         7 * 24 * 3600, /* open period */ 
         {from:INVESTOR1})
       });
 
-/*     it('.. emitting the CreateMandate event', async () => {
-      expectEvent(tx, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
-    }); */
+     /* it('.. emitting the CreateMandate event', async () => {
+      expectEvent(txA, 'CreateMandate', {id: toBN(0), ethers: toBN(0), investor: INVESTOR1, manager: MANAGER1, duration: toBN(0), takeProfit: toBN(30), stopLoss: toBN(20)})
+    });  */
+    it('.. if the collateral allowance is not approved in the baseCoin ERC20, the Agreement should still be created ..');
+    it('.. and the contract should try take maximum allowance .. ');
+    it('.. and the event PendingCollateral to be emitted indicating the remaining amount');
+
+    it('Manager should be able to deposit collateral in stablecoin to an Agreement');
         
     it('Manager should be able to (re)populate an Agreement with terms/edit');
-    it('Manager should be able to deposit collateral in stablecoin to an Agreement');
+    it(' .. whereas if the new collateral value is reduced, the collateral difference is being returned back on Manager ERC20 coin address');
     it('Manager should be able to set Agreement as published');
   });
 

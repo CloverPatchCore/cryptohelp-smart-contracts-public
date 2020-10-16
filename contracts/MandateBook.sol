@@ -181,7 +181,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //validations
 
-
         //actions
         _agreements.push(Agreement({
             status: AgreementLifeCycle.POPULATED,
@@ -201,10 +200,22 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             extraStopped: false
         }));
 
+        Agreement memory aa = _agreements[length - 1];
         uint256 agreementID = _agreements.length - 1;
         if(collatAmount > 0) _tranferDepositCollateral(agreementID, collatAmount);
         //emit events
-        emit CreateAgreement();
+        emit CreateAgreement(
+            agreementID,
+            aa.manager,
+            aa.baseCoin,
+            aa.targetReturnRate,
+            aa.maxCollateralRateIfAvailable,
+            aa.__collatAmount,
+            aa.__committedCapital,
+            aa.duration,
+            aa.openPeriod,
+            publishTimestamp
+        );
 
         //return
         return agreementID;
@@ -371,7 +382,17 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     event DepositCollateral(uint256 agreementID, uint256 amount);
     event WaitForMoreCollateral(uint256 agreementID, uint256 outstanding);
 
-    event CreateAgreement(/* TODO parameters */);
+    event CreateAgreement(
+        uint256 agreementID,
+        address manager,
+        address baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 __collatAmount,
+        uint256 __committedCapital,
+        uint32 duration,
+        uint32 openPeriod,
+        uint256 publishTimestamp);
     event PopulateAgreement(/* TODO parameters */);
     event PublishAgreement(/* TODO parameters */);
     event CommitToAgreement(/* TODO parameters */);
