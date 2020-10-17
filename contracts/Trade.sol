@@ -8,12 +8,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
+import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
 
 import { IUniswapV2Router01 } from '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol';
 import { IUniswapV2Router02 } from '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
 
 // TODO: define what events we need more
-// TODO: define how to be with trade strategies
 // TODO: swap ERC20->ETH, ETH->ERC20, ERC20<->ERC20
 
 contract Trade is MandateBook {
@@ -177,13 +177,22 @@ contract Trade is MandateBook {
         emit ExtraStopped(_agreementId);
     }
 
-    function _updateProfite() internal {
+    function _updateProfit() internal {
         // TODO: add logic
         // formula: get actual price to the base asset,
         // balances[_agreementId].counted = ;
     }
 
-    function getPrice(address token, address baseToken) public returns(uint) {
+    // @dev tokenA, tokenB
+    function getPrice(address tokenA, address tokenB) public returns(uint, uint) {
+        IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(factory, tokenA, tokenB));
+        (uint price0Cumulative, uint price1Cumulative, uint32 blockTimestamp) =
+        UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
+
+        return (price0Cumulative, price1Cumulative);
+    }
+
+    function getLiquidity(address token) public returns(uint) {
         // TODO: add logic
     }
 
@@ -200,6 +209,7 @@ contract Trade is MandateBook {
 
     modifier resolveExtraStop(uint _agreementId) {
         // TODO: add logic
+        // Need to link agreement id and mandate id
         _;
     }
 }
