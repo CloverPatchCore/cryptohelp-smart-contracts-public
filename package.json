@@ -23,8 +23,8 @@
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "app-root-path": "^3.0.0",
     "ganache-time-traveler": "^1.0.15",
-    "solhint": "^3.2.0",
-    "truffle": "^5.1.48"
+    "solhint": "^3.2.2",
+    "truffle": "^5.1.49"
   },
   "devDependencies": {
     "@openzeppelin/test-helpers": "^0.5.7",
