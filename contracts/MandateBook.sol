@@ -175,11 +175,12 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint32 duration,
-        uint32 openPeriod
-        
+        uint32 openPeriod,
+        uint256 extraStopLossPercent
     ) external returns (uint256) {
 
         //validations
+        require(extraStopLossPercent <= 100, "Not valid extra stop loss passed");
 
         //actions
         _agreements.push(Agreement({
@@ -197,7 +198,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             stat_actualReturnRate: 0,
             stat_remainingCollateral: 0,
             stat_actualDuration: 0,
-            extraStopped: false
+            extraStopped: false,
+            extraStopLossPercent: extraStopLossPercent
         }));
 
         Agreement storage aa = _agreements[_agreements.length - 1];
