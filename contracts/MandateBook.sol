@@ -165,7 +165,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         return _mandates[id].ethers;
     } */ 
-    function getAgreementStatus(uint id) external override returns (AMandate.AgreementLifeCycle) {
+    function getAgreementStatus(uint id) external view override returns (AMandate.AgreementLifeCycle) {
         return _agreements[id].status;
     }
 
@@ -265,7 +265,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         emit DepositCollateral(agreementID, transferred);
 
-        return aa.__collatAmount;
+        return transferred;
     }
     function _transferDepositCollateral(uint256 agreementID, uint256 amount) internal returns(uint256) {
         Agreement storage a = _agreements[agreementID];
@@ -329,7 +329,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         m.__committedCapital += transferred;
         _agreements[m.agreement].__committedCapital += transferred;
-        return m.__committedCapital;
+        return transferred;
 
     }
     function depositCapital(uint256 mandateID, uint256 amount) external /* payable */ override /* access modifier */  returns (uint256 ) {
@@ -339,10 +339,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //if(msg.value > 0) processEthers();
 
-        _transferDepositCapital(mandateID, amount);
+        uint256 transferred = _transferDepositCapital(mandateID, amount);
 
-        emit DepositCapital(mandateID, amount);
-        return m.__committedCapital;
+        emit DepositCapital(mandateID, transferred);
+        return transferred;
     }
 
 
@@ -371,9 +371,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         );
     }
 
-    function commitToAgreement(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 mandateID) {
+    function commitToAgreement(uint256 agreementID, uint256 amount/* , uint16 minCollatRequirement */) external /* payable */ returns (uint256 mandateID) {
         //validate
-
+        //TODO require sufficient collateralization
         //execute
         //create a mandate
         _mandates.push(Mandate({
@@ -383,10 +383,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             __committedCapital: 0,
             __collatAmount: 0
         }));
-        mandateID = _mandates.length;
+        mandateID = _mandates.length - 1;
 
-        //TODO manage committed capital through transferFrom
-        this.depositCapital(mandateID, amount);
+        uint256 transferred = _transferDepositCapital(mandateID, amount);
 
         //TODO manage __collatAmount
         //emit event
@@ -402,7 +401,16 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function getAgreementCollateral(uint256 id) public view returns(uint256) {
         return _agreements[id].__collatAmount;
     }
-     
+    function getAgreementCommittedCapital(uint256 id) public view returns(uint256) {
+        return _agreements[id].__committedCapital;
+    }
+
+    function activateAgreement(uint256 id) external onlyAgreementManager(id) {
+        Agreement storage aa = _agreements[id];
+        require(AgreementLifeCycle.PUBLISHED == aa.status, 'Can only activate agreements from AgreementLifeCycle.PUBLISHED status');
+
+        aa.status = AgreementLifeCycle.ACTIVE;
+    }
     //TODO to review
     event CreateMandate(uint256 id, address indexed investor);
     //TODO to review

@@ -27,6 +27,17 @@ contract('MandateBook', (accounts) => {
   const OUTSIDER = accounts[5];
   const MINTER = accounts[6];
 
+//  enum AgreementLifeCycle {
+  const A_EMPTY = 0; // newly created and unfilled with data
+  const A_POPULATED = 1; // filled with data
+  const A_PUBLISHED = 2; // terms are solidified and Investors may now commit capital, TODO discuss rollback for the future
+  const A_ACTIVE = 3; // trading may happen during this phase; no status transition backwards allowed
+  const A_STOPPEDOUT = 4; //RESERVED
+  const A_CLOSEDINPROFIT = 5; // the Agreement has been  prematurely closed by Manager in profit
+  const A_EXPIRED = 6; //the ACTIVE period has been over now
+  const A_SETTLED = 7;// All Investors and a Manager have withdrawn their yields / collateral
+
+
   let mandateBook;
   let iA;
   let txA;
@@ -43,6 +54,7 @@ contract('MandateBook', (accounts) => {
 
     await bPound.transfer(MANAGER1, toWei(500_000), {from:MINTER});
     await bPound.transfer(INVESTOR1, toWei(150_000), {from:MINTER});
+    await bPound.transfer(INVESTOR2, toWei(200_000), {from:MINTER});
 
 
   });
@@ -136,7 +148,17 @@ contract('MandateBook', (accounts) => {
  */  });
 
   describe('Agreement Acceptance Phase', async () =>{
-    it('Investor should be able to opt-in to the Agreement by depositing Capital in Stablecoins');
+    it('Investors should be able to opt-in to the Agreement by depositing Capital in Stablecoins', async () => {
+      //let's have IVNESTOR1 and INVEESTOR2 commit to Agreement 
+      await bPound.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
+      //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
+      await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), {from: INVESTOR1});
+      //now let's introduce 1 more investor
+      await bPound.approve(mandateBook.address, toWei(10_000), {from: INVESTOR2});
+      await mandateBook.commitToAgreement(toBN(0), toWei(5_000), {from: INVESTOR2});
+      (await mandateBook.getAgreementCommittedCapital(toBN(0))).should.be.bignumber.eq(toWei(35_000));
+
+    });
     it('.. in which case the Mandate is populated with the terms');
     it('Investor should be able to opt-out and withdraw Capital only before the end of Open Period of the Agreement');
     it('.. in which case the Mandate is being deleted');
@@ -150,6 +172,12 @@ contract('MandateBook', (accounts) => {
   });
 
   describe('Agreement Trading Phase', async () => {
+    it('Right after the Open Period is over, Manager should be able to ONLY ONCE Start Agreement', async () => {
+      await mandateBook.activateAgreement(toBN(0), {from: MANAGER1});
+      (await mandateBook.getAgreementStatus(toBN(0), {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
+
+    });
+    it('Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed')
     it('Manager should be able to trade with Capital on UniSwap');
   });
 

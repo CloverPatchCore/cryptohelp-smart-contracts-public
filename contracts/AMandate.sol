@@ -1,6 +1,7 @@
 pragma solidity ^0.6.6;
 
 abstract contract AMandate {
+    /* don't forget to update the consts in the tests when you are changing the values here*/
     enum AgreementLifeCycle {
         EMPTY, // newly created and unfilled with data
         POPULATED, // filled with data
