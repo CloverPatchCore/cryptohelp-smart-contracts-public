@@ -8,7 +8,7 @@ abstract contract AMandate {
         PUBLISHED, // terms are solidified and Investors may now commit capital, TODO discuss rollback for the future
         ACTIVE, // trading may happen during this phase; no status transition backwards allowed
         STOPPEDOUT, //RESERVED
-        CLOSEDINPROFIT, // the Agreement has been  prematurely closed by Manager in profit
+        CLOSEDINPROFIT, // RESERVED
         EXPIRED, //the ACTIVE period has been over now
         SETTLED // All Investors and a Manager have withdrawn their yields / collateral
     }

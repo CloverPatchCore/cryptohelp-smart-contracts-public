@@ -5,12 +5,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./AMandate.sol";
 import "./IMandateBook.sol";
+import "./AMandate.sol";
 
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
 contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
+    Trade private _trd = Trade(address(his));
     Mandate[] internal _mandates;
     Agreement[] internal _agreements;
     //data structure designated to holding the info about the mandate
@@ -321,6 +323,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return amountX;
 
     }
+  
     function _transferDepositCapital(uint256 mandateID, uint256 amount) internal returns(uint256 commitedCapitalAfter) {
 
         Mandate storage m = _mandates[mandateID];
@@ -413,6 +416,39 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         aa.status = AgreementLifeCycle.ACTIVE;
     }
+
+    function setExpiredAgreement(uint256 agreementID) public {
+        agreement storage aa = _agreements[agreementID];
+        require(AgreementLifeCycle.ACTIVE == aa.status && now > (aa.publishTimestamp + aa.openPeriod + aa.duration));
+
+        aa.status = AgreementLifeCycle.EXPIRED;
+    }
+
+    public settleMandate(uint256 mandateID) public onlyMandateInvestor(mandateID) nonReentrant {
+        Mandate storage m = _mandates[mandateID];
+        Agreement storage aa = _agreements[m.agreement];
+        require(AgreementLifeCycle.EXPIRED == aa.status);
+        
+        //find the share of the mandate in the pool and multiply by the finalBalance
+        (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
+
+        uint256 mandateFinalTradeBalance = m.__committedCapital * finalAgreementTradeBalance / aa.__committedCapital;
+        //any compensation from the collateral needed?
+        uint256 profitAbsTarget = m.__committedCapital * (1 + m.targetReturnRate);
+        uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? mandateFinalTradeBalance - profitAbsTarget : 0;
+        uint256 recoverableCompensation = desiredCompensation > m.__collatAmount ? m.__collatAmount : desiredCompensation;
+        uint mandateFinalCorrectedBalance = mandateFinalTradeBalance + recoverableCompensation;
+        uint256 mandateCollatLeft = m.__collatAmount - recoverableCompensation;
+        //withdraw percentage of the share on the mandate
+        //settle the collateral
+        IERC(aa.baseCoin).transfer(m.investor, mandateFinalCorrectedBalance);
+        //send remaining collateral to Manageer
+        IERC(aa.baseCoin).transfer(aa.manager, mandateCollatLeft);
+
+        //TODO mark as settled if all 
+
+    } 
+
     //TODO to review
     event CreateMandate(uint256 id, address indexed investor);
     //TODO to review
