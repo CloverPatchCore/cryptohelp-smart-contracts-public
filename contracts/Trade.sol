@@ -37,7 +37,6 @@ contract Trade is MandateBook {
         address toAsset;
         uint256 amountIn;
         uint256 amountOut;
-        uint256 timestamp;
     }
 
     mapping (uint256 => Trade[]) public trades; // used for logging trader activity by agreement
@@ -54,8 +53,6 @@ contract Trade is MandateBook {
     }
 
     function getTrade(uint256 agreementId, uint256 index) public view returns (Trade memory) {
-        require(index < countTrades(agreementId), "Trade not exist");
-
         return trades[agreementId][index];
     }
     
@@ -95,8 +92,7 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: tokenOut,
             amountIn: amountIn,
-            amountOut: amountOutMin,
-            timestamp: block.timestamp
+            amountOut: amountOutMin
         }));
 
         // TODO: update profit table
@@ -139,8 +135,7 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: address(0), // address 0x0 becouse receive the ether
             amountIn: amountIn,
-            amountOut: amountOutMin,
-            timestamp: block.timestamp
+            amountOut: amountOutMin
         }));
 
         // TODO: update profit table
@@ -183,8 +178,7 @@ contract Trade is MandateBook {
             fromAsset: address(0), // address 0x0 becouse sent the ether
             toAsset: tokenOut,
             amountIn: amountInMax,
-            amountOut: amountOut,
-            timestamp: block.timestamp
+            amountOut: amountOut
         }));
 
         // TODO: update profit table

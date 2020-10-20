@@ -4,10 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "compile": "truffle compile",
-    "lint": "solhint contracts/*.sol",
     "test": "truffle test",
-    "watch": "truffle watch"
+    "lint": "solhint contracts/*.sol"
   },
   "repository": {
     "type": "git",
