@@ -41,11 +41,16 @@ contract Trade is MandateBook {
 
     uint256 timeFrame = 15 * 60 * 1 seconds;
 
-    uint256 feePercentUniswap = 3; // 0.3 %
+    uint256 internal feePercentUniswap = 3; // 0.3 %
 
     constructor(address routerContract, IUniswapV2Factory factoryV2) public {
         router = routerContract;
         factory = factoryV2;
+    }
+
+    function getFinalBalance(uint256 agreementId) public view returns (uint) {
+        Balance memory _b = balances[agreementId];
+        return _b.counted;
     }
 
     function countTrades(uint256 agreementId) public view returns (uint) {
@@ -56,6 +61,11 @@ contract Trade is MandateBook {
         require(index < countTrades(agreementId), "Trade not exist");
 
         return trades[agreementId][index];
+    }
+
+    function getBaseAsset(uint256 agreementId) public returns (address baseAsset) {
+        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+        return _a.baseCoin;
     }
     
     // @dev swap any ERC20 token to any ERC20 token
@@ -68,7 +78,7 @@ contract Trade is MandateBook {
         uint256 deadline
     )
         public
-        canTrade(agreementId)
+        canTrade(agreementId, tokenOut)
     {
         require(factory.getPair(tokenIn, tokenOut) != address(0), "Pair not exist");
 
@@ -110,7 +120,7 @@ contract Trade is MandateBook {
         uint256 deadline
     )
         public
-        canTrade(agreementId)
+        canTrade(agreementId, address(0))
     {
         address WETH = IUniswapV2Router01(router).WETH();
 
@@ -141,8 +151,6 @@ contract Trade is MandateBook {
             amountOut: amountOutMin,
             timestamp: block.timestamp
         }));
-
-        // TODO: update profit table
     }
 
     // @dev buy ERC20 token for ETH
@@ -155,7 +163,7 @@ contract Trade is MandateBook {
     )
         public
         payable
-        canTrade(agreementId)
+        canTrade(agreementId, tokenOut)
     {
         require(amountInMax >= msg.value, "Ethers not enough");
 
@@ -185,11 +193,9 @@ contract Trade is MandateBook {
             amountOut: amountOut,
             timestamp: block.timestamp
         }));
-
-        // TODO: update profit table
     }
 
-    // return profit by mandate, depend on first known price
+    // return profit by agreement, depend on first known amount
     // returns absolute value gain or loss (positive is indicator)
     function countProfit(uint256 agreementId) public view returns (uint256 amount, bool positive) {
         if (balances[agreementId].init <= balances[agreementId].counted) {
@@ -210,10 +216,18 @@ contract Trade is MandateBook {
         // balances[agreementId].counted = ;
     }
 
+    function calcPureProfit(uint256 feePercent, uint256 amount, uint256 buyOrderPrice, uint256 sellOrderPrice) public returns (uint256) {
+        return _excludeFees(feePercent, sellOrderPrice.mul(amount).sub(buyOrderPrice.mul(amount)));
+    }
+
+     function _excludeFees(uint256 feePercent, uint256 amount) internal returns (uint256) {
+        return amount.sub(amount.mul(feePercent).div(100));
+    }
+
     // @dev tokenA, tokenB
     function getPrice(address tokenA, address tokenB) public view returns(uint, uint) {
         IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
+        (uint256 price0Cumulative, uint256 price1Cumulative,) =
         UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
 
         return (price0Cumulative, price1Cumulative);
@@ -229,10 +243,18 @@ contract Trade is MandateBook {
         return (reserve0, reserve1);
     }
 
-    modifier canTrade(uint256 agreementId) {
+    modifier canTrade(uint256 agreementId, address outAddress) {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
         require(_a.manager == address(0), "Deal not exist");
         require(_a.manager == msg.sender, "Not manager");
+
+        if (_a.status == AMandate.AgreementLifeCycle.EXPIRED) {
+            require(address(0) != outAddress, "You cannot swap to ethereum now");
+            require(getBaseAsset(agreementId) == outAddress, "Address should be only in base asset");
+            _;
+        }
+
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
         _;
     }
