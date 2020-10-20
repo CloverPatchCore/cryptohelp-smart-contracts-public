@@ -18,9 +18,6 @@ import { UniswapV2OracleLibrary } from '@uniswap/v2-periphery/contracts/librarie
 contract Trade is MandateBook {
     using SafeMath for uint;
 
-    // @dev event triggered on investor
-    event ExtraStopped(uint256 id);
-
     IMandateBook IMB = IMandateBook(address(this));
     address router;
     IUniswapV2Factory factory;
@@ -37,11 +34,14 @@ contract Trade is MandateBook {
         address toAsset;
         uint256 amountIn;
         uint256 amountOut;
+        uint256 timestamp;
     }
 
     mapping (uint256 => Trade[]) public trades; // used for logging trader activity by agreement
 
     uint256 timeFrame = 15 * 60 * 1 seconds;
+
+    uint256 feePercentUniswap = 3; // 0.3 %
 
     constructor(address routerContract, IUniswapV2Factory factoryV2) public {
         router = routerContract;
@@ -53,6 +53,8 @@ contract Trade is MandateBook {
     }
 
     function getTrade(uint256 agreementId, uint256 index) public view returns (Trade memory) {
+        require(index < countTrades(agreementId), "Trade not exist");
+
         return trades[agreementId][index];
     }
     
@@ -92,7 +94,8 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: tokenOut,
             amountIn: amountIn,
-            amountOut: amountOutMin
+            amountOut: amountOutMin,
+            timestamp: block.timestamp
         }));
 
         // TODO: update profit table
@@ -135,7 +138,8 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: address(0), // address 0x0 becouse receive the ether
             amountIn: amountIn,
-            amountOut: amountOutMin
+            amountOut: amountOutMin,
+            timestamp: block.timestamp
         }));
 
         // TODO: update profit table
@@ -178,7 +182,8 @@ contract Trade is MandateBook {
             fromAsset: address(0), // address 0x0 becouse sent the ether
             toAsset: tokenOut,
             amountIn: amountInMax,
-            amountOut: amountOut
+            amountOut: amountOut,
+            timestamp: block.timestamp
         }));
 
         // TODO: update profit table
@@ -198,19 +203,7 @@ contract Trade is MandateBook {
         return (amount, positive);
     }
 
-    // @dev investor can extra stop trades by mandate, if the losses are more than acceptable
-    function extraStopTrade(uint256 agreementId) 
-        external
-        onlyMandateInvestor(agreementId)
-        resolveExtraStop(agreementId) 
-    {
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
-        _a.extraStopped = true;
-        _agreements[agreementId] = _a;
-
-        emit ExtraStopped(agreementId);
-    }
-
+    // @dev on agreement close
     function _updateProfit() internal {
         // TODO: add logic
         // formula: get actual price to the base asset,
@@ -240,23 +233,7 @@ contract Trade is MandateBook {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
         require(_a.manager == address(0), "Deal not exist");
         require(_a.manager == msg.sender, "Not manager");
-        require(!_a.extraStopped, "Trades stopped");
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
-        _;
-    }
-
-    // @dev access right to stop
-    modifier resolveExtraStop(uint256 agreementId) {
-        (uint256 loss, bool positive) = countProfit(agreementId);
-
-        require(!positive, "Profit is in positive space");
-
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
-
-        require(
-            loss > balances[agreementId].init.mul(_a.extraStopLossPercent).div(100),
-            "Extra stop loss not touched"
-        );
         _;
     }
 }
