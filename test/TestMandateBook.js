@@ -181,14 +181,14 @@ contract('MandateBook', (accounts) => {
     it('Manager should be able to trade with Capital on UniSwap');
   });
 
-  describe('Stopped Out Case', async () => {
+  describe('FUTURE: Stopped Out Case', async () => {
     it('Investor should NOT be able to close the Mandate and withdraw the collateral assigned to Mandate');
   });
-  describe('Closed In Profit Case', async () => {
-    it('???Should the settlement happen earlier by the Manager initiative???')
+  describe('FUTURE: Closed In Profit Case', async () => {
+    it('Should the settlement happen earlier by the Manager initiative?')
   });
   describe('Settlement by Expiry Phase', async () => {
-    it('Any of the parties may close all open trading positions on ???all the Mandates of the Agreement ||| their Mandate ??? and do the profit split based on the terms');
+    it('Any of the parties may close all open trading positions on all the Mandates of the Agreement and do the profit split based on the terms');
   });
 
 
