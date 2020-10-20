@@ -12,11 +12,13 @@ interface ITrade is IMandateBook {
 
     function factory() external returns (address);
 
-    function balances(uint256 _agreementId) external returns (uint256 init, uint256 counted);
+    function balances(uint256 agreementId) external returns (uint256 init, uint256 counted);
 
     //function trades() external returns();
 
     function timeFrame() external returns (uint);
+
+    function agreementClosed(uint agreementId) external returns (bool);
 
     function getFinalBalance(uint256 agreementId) external view returns (uint);
 
