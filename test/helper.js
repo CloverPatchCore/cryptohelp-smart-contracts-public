@@ -2,6 +2,8 @@ const timeMachine = require('ganache-time-traveler');
 
 module.exports = {
   timeTravelTo,
+  timeTravelToDate,
+  timeTravelToBlock,
   takeSnapshot,
   revertToSnapshot
 }
@@ -13,6 +15,14 @@ module.exports = {
  */
 async function timeTravelTo(time=0) {
   return timeMachine.advanceTimeAndBlock(time);
+}
+
+async function timeTravelToDate(time) {
+  return timeMachine.advanceTime(time);
+}
+
+async function timeTravelToBlock(block) {
+  return timeMachine.advanceBlock(block);
 }
 
 /**
