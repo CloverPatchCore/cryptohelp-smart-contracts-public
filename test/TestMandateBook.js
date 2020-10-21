@@ -13,6 +13,11 @@ const {
   expectRevert,
 } = require("@openzeppelin/test-helpers");
 
+const {
+  timeTravelTo,
+  timeTravelToBlock
+} = require("./helper");
+
 function toWei(x) {
   return web3.utils.toWei(toBN(x) /*, "nano"*/);
 }
@@ -37,6 +42,10 @@ contract('MandateBook', (accounts) => {
   const A_EXPIRED = 6; //the ACTIVE period has been over now
   const A_SETTLED = 7;// All Investors and a Manager have withdrawn their yields / collateral
 
+  const DURATION1 = toBN(30 * 24 * 3_600);
+  const HALFDURATION1 = toBN(15 * 24 * 3_800);
+  const OPENPERIOD1 = toBN(7 * 24 * 3_600);
+  const HALFOPENPERIOD1 = toBN(7 * 12 * 3_600);
 
   let mandateBook;
   let iA;
@@ -79,8 +88,8 @@ contract('MandateBook', (accounts) => {
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(100_000), /* collatAmount */
-        30 * 24 * 3600,  /* duration   */
-        7 * 24 * 3600, /* open period */ 
+        DURATION1,  /* duration   */
+        OPENPERIOD1, /* open period */ 
         {from:MANAGER1});
       iA = 0;
       });
@@ -100,8 +109,8 @@ contract('MandateBook', (accounts) => {
         maxCollateralRateIfAvailable: toBN(80),
         __collatAmount: toWei(70_000),
         __committedCapital: toBN(0),
-        duration: toBN(30 * 24 * 3600),
-        openPeriod: toBN(7 * 24 * 3600),
+        duration: DURATION1,
+        openPeriod: OPENPERIOD1,
         publishTimestamp: toBN(0)
       });
     });
@@ -175,9 +184,11 @@ contract('MandateBook', (accounts) => {
     it('Right after the Open Period is over, Manager should be able to ONLY ONCE Start Agreement', async () => {
       await mandateBook.activateAgreement(toBN(0), {from: MANAGER1});
       (await mandateBook.getAgreementStatus(toBN(0), {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
-
     });
-    it('Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed')
+    it('The Agreement should remain active throughout the DURATION', async () => {
+      timeTravelTo(HALF_DURATION1);
+    });
+    it('FUTURE: Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed');
     it('Manager should be able to trade with Capital on UniSwap');
   });
 

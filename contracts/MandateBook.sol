@@ -29,6 +29,11 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         _;
     }
 
+    modifier onlyMandateOrAgreementOwner(uint256 mandateID) {
+        require(msg.sender == _mandates[mandateID].investor || msg.sender == _agreements[_mandates[mandateID].agreement].manager, "Only Investor or Manager");
+        _;
+    }
+
     constructor() public {
         _init();        
     }
