@@ -6,14 +6,14 @@ import "./MandateBook.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
+import { TransferHelper } from "@uniswap/lib/contracts/libraries/TransferHelper.sol";
+import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
-import { IUniswapV2Router01 } from '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol';
-import { IUniswapV2Router02 } from '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
-import { UniswapV2Library } from '@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol';
-import { UniswapV2OracleLibrary } from '@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol';
+import { IUniswapV2Router01 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol";
+import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Library } from "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
+import { UniswapV2OracleLibrary } from "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 
 contract Trade is MandateBook {
     using SafeMath for uint;
@@ -39,13 +39,77 @@ contract Trade is MandateBook {
 
     mapping (uint256 => Trade[]) public trades; // used for logging trader activity by agreement
 
+    mapping (uint256 => bool) public agreementClosed;
+
     uint256 timeFrame = 15 * 60 * 1 seconds;
 
-    uint256 internal feePercentUniswap = 3; // 0.3 %
+    uint256 internal exchangeFee = 3; // 0.3 % for uniswap
 
-    constructor(address routerContract, IUniswapV2Factory factoryV2) public {
+    mapping(uint => mapping(address => bool)) markedTokens; // agreement id -> mapping
+    mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
+
+    constructor(address factoryV2, address routerContract) public {
+        factory = IUniswapV2Factory(factoryV2);
         router = routerContract;
-        factory = factoryV2;
+    }
+
+    function sellAll(uint256 agreementId) public payable {
+        address WETH = IUniswapV2Router01(router).WETH();
+        uint256 balanceOnClose = 0;
+
+        Trade memory _t;
+        uint l = countTrades(agreementId);
+
+        if (l == 0) {
+            balances[agreementId].counted = balances[agreementId].init;
+            return;
+        }
+
+        for (uint i=0; i<l; i++) {
+            _t = trades[agreementId][i];
+            if (i == 0) {
+                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
+            }
+            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
+            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
+        }
+
+        for (uint i=0; i<l; i++) {
+            _t = trades[agreementId][i];
+            if (!markedTokens[agreementId][_t.toAsset]) {
+
+                if(_t.toAsset == address(0)) {
+                    // get prices
+                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(WETH, getBaseAsset(agreementId));
+
+                    swapETHForToken(
+                        agreementId,
+                        _t.toAsset, // tokenOut,
+                        countedBalance[agreementId][getBaseAsset(agreementId)], // amountOut // TODO: bug need get price then set in
+                        countedBalance[agreementId][address(0)], // amountInMax // TODO: bug maybe not
+                        block.timestamp.add(timeFrame) //deadline
+                    );
+                } else {
+                    // get prices
+                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(_t.toAsset, getBaseAsset(agreementId));
+
+                    swapTokenToToken(
+                        agreementId, //uint256 agreementId,
+                        _t.fromAsset, //address tokenIn,
+                        _t.toAsset, //address tokenOut,
+                        countedBalance[agreementId][_t.toAsset], //uint256 amountIn, // TODO: bug maybe not
+                        countedBalance[agreementId][getBaseAsset(agreementId)], //uint256 amountOutMin, // TODO: bug need get price then set in
+                        block.timestamp.add(timeFrame) //uint256 deadline
+                    );
+                }
+                balanceOnClose += 0; //
+
+            }
+            markedTokens[agreementId][_t.toAsset] = true;
+        }
+
+        balances[agreementId].counted = balanceOnClose; // TODO: set here amount out
+        agreementClosed[agreementId] = true;
     }
 
     function getFinalBalance(uint256 agreementId) public view returns (uint) {
@@ -107,8 +171,6 @@ contract Trade is MandateBook {
             amountOut: amountOutMin,
             timestamp: block.timestamp
         }));
-
-        // TODO: update profit table
     }
 
     // @dev sell ERC20 token for ETH
@@ -209,19 +271,19 @@ contract Trade is MandateBook {
         return (amount, positive);
     }
 
-    // @dev on agreement close
-    function _updateProfit() internal {
-        // TODO: add logic
-        // formula: get actual price to the base asset,
-        // balances[agreementId].counted = ;
+    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public returns (uint256 amountAssetX) {
+        return _excludeFees(priceAssetX.mul(amountAssetD).sub(priceAssetD));
     }
 
-    function calcPureProfit(uint256 feePercent, uint256 amount, uint256 buyOrderPrice, uint256 sellOrderPrice) public returns (uint256) {
-        return _excludeFees(feePercent, sellOrderPrice.mul(amount).sub(buyOrderPrice.mul(amount)));
+    // @dev
+    // @param amount
+    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public returns (uint256 profit) {
+        return _excludeFees(sellPrice.mul(amount).sub(buyPrice.mul(amount)));
     }
 
-     function _excludeFees(uint256 feePercent, uint256 amount) internal returns (uint256) {
-        return amount.sub(amount.mul(feePercent).div(100));
+     function _excludeFees(uint256 amount) internal returns (uint256) {
+         uint OPDecimal = 1000; // because used less then 100
+         return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
     }
 
     // @dev tokenA, tokenB
