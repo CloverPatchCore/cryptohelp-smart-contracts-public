@@ -420,25 +420,31 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.status = AgreementLifeCycle.EXPIRED;
     }
 
-    function settleMandate(uint256 mandateID) public onlyMandateInvestor(mandateID) nonReentrant {
+    function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
         require(AgreementLifeCycle.EXPIRED == aa.status);
         
         //find the share of the mandate in the pool and multiply by the finalBalance
         (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
-
+        // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = m.__committedCapital * finalAgreementTradeBalance / aa.__committedCapital;
-        //any compensation from the collateral needed?
+        //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
         uint256 profitAbsTarget = m.__committedCapital * (1 + aa.targetReturnRate);
+        //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
         uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? mandateFinalTradeBalance - profitAbsTarget : 0;
+        //now if the above is higher than the actual collateral, it will only count actual collateral
         uint256 recoverableCompensation = desiredCompensation > m.__collatAmount ? m.__collatAmount : desiredCompensation;
+        //let's calculate the final that we have to pay as a sum of trade balance and the compensation
         uint mandateFinalCorrectedBalance = mandateFinalTradeBalance + recoverableCompensation;
+        //and then the remaining collateral if any to be sent back to Manager
         uint256 mandateCollatLeft = m.__collatAmount - recoverableCompensation;
+        
         //withdraw percentage of the share on the mandate
         //settle the collateral
         IERC20(aa.baseCoin).transfer(m.investor, mandateFinalCorrectedBalance);
         //send remaining collateral to Manageer
+        //TODO in the future for sake of gas optimization. write the withdrawable collateral to the separate value to save on gas fees
         IERC20(aa.baseCoin).transfer(aa.manager, mandateCollatLeft);
 
         //TODO mark as settled if all 
