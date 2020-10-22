@@ -186,7 +186,7 @@ contract('MandateBook', (accounts) => {
       (await mandateBook.getAgreementStatus(toBN(0), {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
     });
     it('The Agreement should remain active throughout the DURATION', async () => {
-      timeTravelTo(HALFDURATION1);
+      await timeTravelTo(HALFDURATION1);
       //TODO check if it reverts if we try to close or settle
     });
     it('FUTURE: Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed');
@@ -201,7 +201,7 @@ contract('MandateBook', (accounts) => {
   });
   describe('Settlement by Expiry Phase', async () => {
     //this should be enough for get outside of DURATION
-    timeTravelTo(HALFDURATION1+100);
+    await timeTravelTo(HALFDURATION1+100);
     it('Anyone can trigger the expiry of the contract and start settlement', async () => {
       await mandateBook.setExpiredAgreement(toBN(0));
       (await mandateBook.getAgreementStatus(toBN(0))).to.be.bignumber.eq(toBN(A_EXPIRED));
