@@ -1,0 +1,12 @@
+version: '3.7'
+services:
+  ganache-cli:
+    container_name: ganache-cli
+    image: trufflesuite/ganache-cli:latest
+    ports:
+      - 8545:8545
+    volumes:
+      - ganache_data
+    working_dir: /app
+volumes:
+  ganache_data:
