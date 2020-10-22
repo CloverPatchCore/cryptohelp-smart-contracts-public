@@ -22,6 +22,10 @@ function toWei(x) {
   return web3.utils.toWei(toBN(x) /*, "nano"*/);
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 contract('MandateBook', (accounts) => {
 
   const OWNER = accounts[0];
@@ -42,10 +46,10 @@ contract('MandateBook', (accounts) => {
   const A_EXPIRED = 6; //the ACTIVE period has been over now
   const A_SETTLED = 7;// All Investors and a Manager have withdrawn their yields / collateral
 
-  const DURATION1 = toBN(30 * 24 * 3_600);
-  const HALFDURATION1 = toBN(15 * 24 * 3_600);
-  const OPENPERIOD1 = toBN(7 * 24 * 3_600);
-  const HALFOPENPERIOD1 = toBN(7 * 12 * 3_600);
+  const DURATION1 = /* toBN(10 * 60); */ 600;
+  const HALFDURATION1 = /* toBN(5 * 60); */ 300;
+  const OPENPERIOD1 = /* toBN(8 * 60); */ 480;
+  const HALFOPENPERIOD1 = /* toBN(4 * 60); */ 240;
 
   let mandateBook;
   let iA;
@@ -88,8 +92,8 @@ contract('MandateBook', (accounts) => {
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(100_000), /* collatAmount */
-        DURATION1,  /* duration   */
-        OPENPERIOD1, /* open period */ 
+        toBN(DURATION1),  /* duration   */
+        toBN(OPENPERIOD1), /* open period */ 
         {from:MANAGER1});
       iA = 0;
       });
@@ -109,8 +113,8 @@ contract('MandateBook', (accounts) => {
         maxCollateralRateIfAvailable: toBN(80),
         __collatAmount: toWei(70_000),
         __committedCapital: toBN(0),
-        duration: DURATION1,
-        openPeriod: OPENPERIOD1,
+        duration: toBN(DURATION1),
+        openPeriod: toBN(OPENPERIOD1),
         publishTimestamp: toBN(0)
       });
     });
@@ -166,6 +170,8 @@ contract('MandateBook', (accounts) => {
       await bPound.approve(mandateBook.address, toWei(10_000), {from: INVESTOR2});
       await mandateBook.commitToAgreement(toBN(0), toWei(5_000), {from: INVESTOR2});
       (await mandateBook.getAgreementCommittedCapital(toBN(0))).should.be.bignumber.eq(toWei(35_000));
+      //await sleep((OPENPERIOD1 + 1) * 1000);
+      await timeTravelTo(OPENPERIOD1);
 
     });
     it('.. in which case the Mandate is populated with the terms');
@@ -187,6 +193,7 @@ contract('MandateBook', (accounts) => {
     });
     it('The Agreement should remain active throughout the DURATION', async () => {
       await timeTravelTo(HALFDURATION1);
+      //await sleep(HALFDURATION1 * 1000);
       //TODO check if it reverts if we try to close or settle
     });
     it('FUTURE: Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed');
@@ -197,21 +204,22 @@ contract('MandateBook', (accounts) => {
     it('Investor should NOT be able to close the Mandate and withdraw the collateral assigned to Mandate');
   });
   describe('FUTURE: Closed In Profit Case', async () => {
-    it('Should the settlement happen earlier by the Manager initiative?')
+    it('Should the settlement happen earlier by the Manager initiative?');
   });
   describe('Settlement by Expiry Phase', async () => {
     //this should be enough for get outside of DURATION
-    await timeTravelTo(HALFDURATION1+100);
+    //await(HALFDURATION1+2000); //will be total duration plus 2 seconds
     it('Anyone can trigger the expiry of the contract and start settlement', async () => {
+      await timeTravelTo(HALFDURATION1+100);
       await mandateBook.setExpiredAgreement(toBN(0));
-      (await mandateBook.getAgreementStatus(toBN(0))).to.be.bignumber.eq(toBN(A_EXPIRED));
+      (await mandateBook.getAgreementStatus(toBN(0))).should.be.bignumber.eq(toBN(A_EXPIRED));
     });
     it('Mandate Agreement Manager or Mandate Investor should be able to settle the Mandate', async () => {
       let finalBal = toWei(35_000);
       
       inv1PreBal = await bPound.balanceOf(INVESTOR1);
       mgr1PreBal = await bPound.balanceOf(MANAGER1);
-      await mandateBook.settleMandate(toBN(0));
+      await mandateBook.settleMandate(toBN(0), {from: INVESTOR1});
       inv1ShouldReceiveReturn = 39_000; // 30_000 X 130%
       mgr1ShouldReceiveCollateral = (80 * 30_000 / 100) /* that's how much collateral was allocated to the mandate */ - (39_000 - 30_000) /* this is the lack of profit that has to be compensated */;
       (await bPound.balanceOf(INVESTOR1)).should.be.bignumber.eq(inv1PreBal + inv1ShouldReceiveReturn);
