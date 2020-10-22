@@ -43,7 +43,7 @@ contract('MandateBook', (accounts) => {
   const A_SETTLED = 7;// All Investors and a Manager have withdrawn their yields / collateral
 
   const DURATION1 = toBN(30 * 24 * 3_600);
-  const HALFDURATION1 = toBN(15 * 24 * 3_800);
+  const HALFDURATION1 = toBN(15 * 24 * 3_600);
   const OPENPERIOD1 = toBN(7 * 24 * 3_600);
   const HALFOPENPERIOD1 = toBN(7 * 12 * 3_600);
 
@@ -186,7 +186,8 @@ contract('MandateBook', (accounts) => {
       (await mandateBook.getAgreementStatus(toBN(0), {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
     });
     it('The Agreement should remain active throughout the DURATION', async () => {
-      timeTravelTo(HALF_DURATION1);
+      timeTravelTo(HALFDURATION1);
+      //TODO check if it reverts if we try to close or settle
     });
     it('FUTURE: Right after the Open Period is over, Manager should be able to ONLY  ONCE Cancel Agreement upon his discretion, for example if not enough Capital was committed');
     it('Manager should be able to trade with Capital on UniSwap');
@@ -199,7 +200,24 @@ contract('MandateBook', (accounts) => {
     it('Should the settlement happen earlier by the Manager initiative?')
   });
   describe('Settlement by Expiry Phase', async () => {
-    it('Any of the parties may close all open trading positions on all the Mandates of the Agreement and do the profit split based on the terms');
+    //this should be enough for get outside of DURATION
+    timeTravelTo(HALFDURATION1+100);
+    it('Anyone can trigger the expiry of the contract and start settlement', async () => {
+      await mandateBook.setExpiredAgreement(toBN(0));
+      (await mandateBook.getAgreementStatus(toBN(0))).to.be.bignumber.eq(toBN(A_EXPIRED));
+    });
+    it('Mandate Agreement Manager or Mandate Investor should be able to settle the Mandate', async () => {
+      let finalBal = toWei(35_000);
+      
+      inv1PreBal = await bPound.balanceOf(INVESTOR1);
+      mgr1PreBal = await bPound.balanceOf(MANAGER1);
+      await mandateBook.settleMandate(toBN(0));
+      inv1ShouldReceiveReturn = 39_000; // 30_000 X 130%
+      mgr1ShouldReceiveCollateral = (80 * 30_000 / 100) /* that's how much collateral was allocated to the mandate */ - (39_000 - 30_000) /* this is the lack of profit that has to be compensated */;
+      (await bPound.balanceOf(INVESTOR1)).should.be.bignumber.eq(inv1PreBal + inv1ShouldReceiveReturn);
+      (await bPound.balanceOf(MANAGER1)).should.be.bignumber.eq(mgr1PreBal + mgr1ShouldReceiveCollateral);
+
+    });
   });
 
 
