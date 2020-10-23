@@ -6,14 +6,14 @@ import "./MandateBook.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { TransferHelper } from "@uniswap/lib/contracts/libraries/TransferHelper.sol";
-import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Pair } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import { TransferHelper } from "./uniswapv2/libraries/TransferHelper.sol";
+import { IUniswapV2Factory } from "./uniswapv2/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "./uniswapv2/interfaces/IUniswapV2Pair.sol";
 
-import { IUniswapV2Router01 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router01.sol";
-import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import { UniswapV2Library } from "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
-import { UniswapV2OracleLibrary } from "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import { IUniswapV2Router01 } from "./uniswapv2/interfaces/IUniswapV2Router01.sol";
+import { IUniswapV2Router02 } from "./uniswapv2/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Library } from "./uniswapv2/libraries/UniswapV2Library.sol";
+import { UniswapV2OracleLibrary } from "./uniswapv2/libraries/UniswapV2OracleLibrary.sol";
 
 contract Trade is MandateBook {
     using SafeMath for uint;
@@ -127,7 +127,7 @@ contract Trade is MandateBook {
         return trades[agreementId][index];
     }
 
-    function getBaseAsset(uint256 agreementId) public returns (address baseAsset) {
+    function getBaseAsset(uint256 agreementId) public view returns (address baseAsset) {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
         return _a.baseCoin;
     }
@@ -168,7 +168,7 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: tokenOut,
             amountIn: amountIn,
-            amountOut: amountOutMin,
+            amountOut: _excludeFees(amountOutMin),
             timestamp: block.timestamp
         }));
     }
@@ -210,7 +210,7 @@ contract Trade is MandateBook {
             fromAsset: tokenIn,
             toAsset: address(0), // address 0x0 becouse receive the ether
             amountIn: amountIn,
-            amountOut: amountOutMin,
+            amountOut: _excludeFees(amountOutMin),
             timestamp: block.timestamp
         }));
     }
@@ -252,7 +252,7 @@ contract Trade is MandateBook {
             fromAsset: address(0), // address 0x0 becouse sent the ether
             toAsset: tokenOut,
             amountIn: amountInMax,
-            amountOut: amountOut,
+            amountOut: _excludeFees(amountOut),
             timestamp: block.timestamp
         }));
     }
@@ -260,7 +260,7 @@ contract Trade is MandateBook {
     // return profit by agreement, depend on first known amount
     // returns absolute value gain or loss (positive is indicator)
     function countProfit(uint256 agreementId) public view returns (uint256 amount, bool positive) {
-        if (balances[agreementId].init <= balances[agreementId].counted) {
+        if (balances[agreementId].init < balances[agreementId].counted) {
             amount = balances[agreementId].counted.sub(balances[agreementId].init);
             positive = true;
         } else {
@@ -271,27 +271,25 @@ contract Trade is MandateBook {
         return (amount, positive);
     }
 
-    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public returns (uint256 amountAssetX) {
-        return _excludeFees(priceAssetX.mul(amountAssetD).sub(priceAssetD));
+    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public view returns (uint256 amountAssetX) {
+        return _excludeFees(priceAssetX.mul(amountAssetD).div(priceAssetD));
     }
 
     // @dev
     // @param amount
-    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public returns (uint256 profit) {
+    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public view returns (uint256 profit) {
         return _excludeFees(sellPrice.mul(amount).sub(buyPrice.mul(amount)));
     }
 
-     function _excludeFees(uint256 amount) internal returns (uint256) {
+     function _excludeFees(uint256 amount) internal view returns (uint256) {
          uint OPDecimal = 1000; // because used less then 100
          return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
     }
 
     // @dev tokenA, tokenB
-    function getPrice(address tokenA, address tokenB) public view returns(uint, uint) {
+    function getPrice(address tokenA, address tokenB) public view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
         IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
-        (uint256 price0Cumulative, uint256 price1Cumulative,) =
-        UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
-
+        (price0Cumulative, price1Cumulative,) = UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
         return (price0Cumulative, price1Cumulative);
     }
 
