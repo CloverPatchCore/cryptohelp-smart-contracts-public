@@ -34,20 +34,31 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         _;
     }
 
+    modifier onlyExistAgreement(uint256 id) {
+        require(_agreements.length > id, "Agreement not exist");
+        _;
+    }
+
+    modifier onlyExistMandate(uint256 id) {
+        require(_mandates.length > id, "Mandate not exist");
+        _;
+    }
+
     constructor() public {
         _init();        
     }
-    function getMandateStatus(uint id) external override returns (AMandate.MandateLifeCycle) {
+
+    function getMandateStatus(uint id) external view override onlyExistMandate(id) returns (AMandate.MandateLifeCycle) {
         return _mandates[id].status;
     }
 
     // @dev getter for mandate
-    function getMandate(uint id) external override returns (AMandate.Mandate memory mandate) {
+    function getMandate(uint id) external view override onlyExistMandate(id) returns (AMandate.Mandate memory mandate) {
         return _mandates[id];
     }
 
     // @dev getter for agreement
-    function getAgreement(uint id) external override returns (AMandate.Agreement memory agreement) {
+    function getAgreement(uint id) external view override onlyExistAgreement(id) returns (AMandate.Agreement memory agreement) {
         return _agreements[id];
     }
 
