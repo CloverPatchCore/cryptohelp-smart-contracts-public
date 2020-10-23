@@ -1,4 +1,4 @@
-const { BN } = web3.utils;
+/* const { BN } = web3.utils;
 require("chai").use(require("chai-bn")(BN)).should();
 
 const {
@@ -31,4 +31,4 @@ contract('NONE', () => {
       assert.notEqual(originalBlockHash, newBlockHash, "next block hash was not mined");
     });
   });
-})
+}) */
