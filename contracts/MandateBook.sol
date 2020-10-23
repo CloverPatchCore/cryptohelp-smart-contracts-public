@@ -10,7 +10,7 @@ import "./ITrade.sol";
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
+contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     ITrade private _trd = ITrade(address(this));
     Mandate[] internal _mandates;
