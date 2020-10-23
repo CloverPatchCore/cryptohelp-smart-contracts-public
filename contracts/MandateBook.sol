@@ -10,7 +10,7 @@ import "./ITrade.sol";
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
+contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
 
     ITrade private _trd = ITrade(address(this));
     Mandate[] internal _mandates;
@@ -428,7 +428,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
-        require(AgreementLifeCycle.EXPIRED == aa.status);
+        require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
         
         //find the share of the mandate in the pool and multiply by the finalBalance
         (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
