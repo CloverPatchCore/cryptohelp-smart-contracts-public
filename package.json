@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "compile": "truffle compile",
+    "compile": "truffle compile --all",
     "lint": "solhint contracts/*.sol",
     "test": "truffle test",
     "watch": "truffle watch"
@@ -24,6 +24,7 @@
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "app-root-path": "^3.0.0",
+    "ethers": "^5.0.18",
     "ganache-time-traveler": "^1.0.15",
     "solhint": "^3.2.2",
     "truffle": "^5.1.49"
