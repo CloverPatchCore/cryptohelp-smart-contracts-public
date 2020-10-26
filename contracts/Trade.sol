@@ -45,7 +45,10 @@ contract Trade is MandateBook {
 
     uint256 internal exchangeFee = 3; // 0.3 % for uniswap
 
+    // is was added to counted balance
     mapping(uint => mapping(address => bool)) markedTokens; // agreement id -> mapping
+
+    // by agreement id we store the balances of Assets (on the end of the agreement)
     mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
     constructor(address factoryV2, address routerContract) public {
@@ -53,6 +56,7 @@ contract Trade is MandateBook {
         router = routerContract;
     }
 
+    // on agreement end, close all positions
     function sellAll(uint256 agreementId)
         external
         payable
@@ -117,7 +121,7 @@ contract Trade is MandateBook {
                         block.timestamp.add(timeFrame) //uint256 deadline
                     );
                 }
-                balanceOnClose += 0; //
+                balanceOnClose += 0; // TODO: need add
 
             }
             markedTokens[agreementId][_t.toAsset] = true;
@@ -132,6 +136,7 @@ contract Trade is MandateBook {
         return _b.counted;
     }
 
+    // trades from trader by the agreement
     function countTrades(uint256 agreementId) public view returns (uint) {
         return trades[agreementId].length;
     }
