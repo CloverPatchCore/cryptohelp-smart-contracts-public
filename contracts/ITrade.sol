@@ -2,7 +2,7 @@ pragma solidity ^0.6.6;
 pragma experimental ABIEncoderV2;
 
 import "./IMandateBook.sol";
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
+import './uniswapv2/interfaces/IUniswapV2Factory.sol';
 
 interface ITrade is IMandateBook {
 
