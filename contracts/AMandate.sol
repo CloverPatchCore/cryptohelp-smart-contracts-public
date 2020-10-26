@@ -20,6 +20,7 @@ abstract contract AMandate {
         uint8 targetReturnRate; // the rate of return aimed at by Manager
         uint8 maxCollateralRateIfAvailable; // maximum percentage of collateral offered by Manager in case if the collateral is still available based on FCFS basis
         uint256 __collatAmount; // absolute collateral balance in baseCoin
+        uint256 __freeCollatAmount; // absolute collateral remaining on the agreements after all the Mandates have been collateralized
         uint256 __committedCapital; // absolute amount of capital committed to this Agreement (usually made through Mandates)
         uint32 duration; // seconds of duration of an ACTIVE phase of the Agreemenet
         uint32 openPeriod; // seconds of duration of a PUBLISHED period

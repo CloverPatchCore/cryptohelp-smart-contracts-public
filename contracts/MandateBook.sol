@@ -10,7 +10,7 @@ import "./ITrade.sol";
 /* Mandate to be set by the Investor
     therefore Investor == Owner */
 
-contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
+contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     ITrade private _trd = ITrade(address(this));
     Mandate[] internal _mandates;
@@ -195,6 +195,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
             targetReturnRate: targetReturnRate,
             maxCollateralRateIfAvailable: maxCollateralRateIfAvailable,
             __collatAmount: 0, 
+            __freeCollatAmount: 0,
             __committedCapital: 0, /* initially there's no capital committed  */
             duration: duration,
             openPeriod: openPeriod,
@@ -205,8 +206,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
             stat_actualDuration: 0
         }));
 
-        Agreement storage aa = _agreements[_agreements.length - 1];
         uint256 agreementID = _agreements.length - 1;
+        Agreement storage aa = _agreements[agreementID];
         if(collatAmount > 0) _transferDepositCollateral(agreementID, collatAmount);
         //emit events
         emit CreateAgreement(
@@ -216,6 +217,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
             aa.targetReturnRate,
             aa.maxCollateralRateIfAvailable,
             aa.__collatAmount,
+            aa.__freeCollatAmount,
             aa.__committedCapital,
             aa.duration,
             aa.openPeriod,
@@ -278,6 +280,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         uint256 transferred = __safeTransferFrom(a.baseCoin, msg.sender, address(this), amount);
 
         a.__collatAmount += transferred;
+        a.__freeCollatAmount += transferred;
 
         return transferred;
     }
@@ -287,6 +290,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
 
         uint256 transferred = __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
 
+        //we can't actually withdraw more collateral that is available
+        require(a.__freeCollatAmount > transferred);
+        a.__freeCollatAmount -= transferred;
         a.__collatAmount -= transferred;
     }
 
@@ -334,7 +340,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         uint256 transferred = __safeTransferFrom(_agreements[m.agreement].baseCoin, msg.sender, address(this), amount);
 
         m.__committedCapital += transferred;
-        _agreements[m.agreement].__committedCapital += transferred;
+        Agreement storage aa = _agreements[m.agreement];
+        //TODO collateralize here
+        aa.__committedCapital += transferred;
+        uint256 collat = transferred * aa.maxCollateralRateIfAvailable / 100;
+        m.__collatAmount += collat;
+        require(aa.__freeCollatAmount >= collat, "Insufficient collateral");
+        aa.__freeCollatAmount -= collat;
+        
         return transferred;
 
     }
@@ -370,6 +383,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
             aa.targetReturnRate,
             aa.maxCollateralRateIfAvailable,
             aa.__collatAmount,
+            aa.__freeCollatAmount,
             aa.__committedCapital,
             aa.duration,
             aa.openPeriod,
@@ -393,7 +407,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
 
         uint256 transferred = _transferDepositCapital(mandateID, amount);
 
-        //TODO manage __collatAmount
         //emit event
         emit CommitToAgreement();
 
@@ -425,19 +438,19 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         aa.status = AgreementLifeCycle.EXPIRED;
     }
 
-    function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
+    function settleMandate(uint256 mandateID, uint256 finalAgreementTradeBalance) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
         require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
         
         //find the share of the mandate in the pool and multiply by the finalBalance
-        (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
+        //(, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
         // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = m.__committedCapital * finalAgreementTradeBalance / aa.__committedCapital;
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
-        uint256 profitAbsTarget = m.__committedCapital * (1 + aa.targetReturnRate);
+        uint256 profitAbsTarget = m.__committedCapital * (100 + aa.targetReturnRate) / 100;
         //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
-        uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? mandateFinalTradeBalance - profitAbsTarget : 0;
+        uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? profitAbsTarget - mandateFinalTradeBalance : 0;
         //now if the above is higher than the actual collateral, it will only count actual collateral
         uint256 recoverableCompensation = desiredCompensation > m.__collatAmount ? m.__collatAmount : desiredCompensation;
         //let's calculate the final that we have to pay as a sum of trade balance and the compensation
@@ -453,6 +466,20 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         IERC20(aa.baseCoin).transfer(aa.manager, mandateCollatLeft);
 
         //TODO mark as settled if all 
+
+        emit __service__settleMandate__values(
+            mandateFinalTradeBalance,
+            //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
+            profitAbsTarget,
+            //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
+            desiredCompensation,
+            //now if the above is higher than the actual collateral, it will only count actual collateral
+            recoverableCompensation,
+            //let's calculate the final that we have to pay as a sum of trade balance and the compensation
+            mandateFinalCorrectedBalance,
+            //and then the remaining collateral if any to be sent back to Manager
+            mandateCollatLeft
+    );
 
     } 
 
@@ -481,6 +508,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
         uint256 __collatAmount,
+        uint256 __freeCollatAmount,
         uint256 __committedCapital,
         uint32 duration,
         uint32 openPeriod,
@@ -493,12 +521,25 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard, ITrade {
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
         uint256 __collatAmount,
+        uint256 __freeCollatAmount,
         uint256 __committedCapital,
         uint32 duration,
         uint32 openPeriod,
         uint256 publishTimestamp);
     event CommitToAgreement(/* TODO parameters */);
-    
+    event __service__settleMandate__values(
+        uint256 mandateFinalTradeBalance,
+        //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
+        uint256 profitAbsTarget,
+        //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
+        uint256 desiredCompensation,
+        //now if the above is higher than the actual collateral, it will only count actual collateral
+        uint256 recoverableCompensation,
+        //let's calculate the final that we have to pay as a sum of trade balance and the compensation
+        uint mandateFinalCorrectedBalance,
+        //and then the remaining collateral if any to be sent back to Manager
+        uint256 mandateCollatLeft
+    );
 
 }
 
