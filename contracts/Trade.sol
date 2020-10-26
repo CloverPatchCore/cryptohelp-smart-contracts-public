@@ -53,19 +53,31 @@ contract Trade is MandateBook {
         router = routerContract;
     }
 
-    function sellAll(uint256 agreementId) public payable {
-        address WETH = IUniswapV2Router01(router).WETH();
+    function sellAll(uint256 agreementId)
+        external
+        payable
+        onlyAgreementManager(agreementId)
+    {
+        require(!agreementClosed[agreementId], "Agreement was closed");
+
+        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
+        require(
+            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
+            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
+            "Agreement active or closed"
+        );
+
         uint256 balanceOnClose = 0;
 
         Trade memory _t;
-        uint l = countTrades(agreementId);
 
-        if (l == 0) {
+        if (countTrades(agreementId) == 0) {
             balances[agreementId].counted = balances[agreementId].init;
             return;
         }
 
-        for (uint i=0; i<l; i++) {
+        for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
             if (i == 0) {
                 countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
@@ -74,13 +86,16 @@ contract Trade is MandateBook {
             countedBalance[agreementId][_t.toAsset] += _t.amountOut;
         }
 
-        for (uint i=0; i<l; i++) {
+        for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
             if (!markedTokens[agreementId][_t.toAsset]) {
 
                 if(_t.toAsset == address(0)) {
                     // get prices
-                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(WETH, getBaseAsset(agreementId));
+                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(
+                        IUniswapV2Router01(router).WETH(),
+                        getBaseAsset(agreementId)
+                    );
 
                     swapETHForToken(
                         agreementId,
@@ -127,9 +142,8 @@ contract Trade is MandateBook {
         return trades[agreementId][index];
     }
 
-    function getBaseAsset(uint256 agreementId) public view returns (address baseAsset) {
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
-        return _a.baseCoin;
+    function getBaseAsset(uint256 agreementId) public view returns (address) {
+        return (IMB.getAgreement(agreementId)).baseCoin;
     }
     
     // @dev swap any ERC20 token to any ERC20 token
