@@ -449,13 +449,13 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.status = AgreementLifeCycle.EXPIRED;
     }
 
-    function settleMandate(uint256 mandateID, uint256 finalAgreementTradeBalance) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
+    function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
         require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
         
         //find the share of the mandate in the pool and multiply by the finalBalance
-        //(, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
+        (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
         // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = m.__committedCapital * finalAgreementTradeBalance / aa.__committedCapital;
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)

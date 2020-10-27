@@ -219,7 +219,7 @@ contract('MandateBook', (accounts) => {
       
       inv1PreBal = await bPound.balanceOf(INVESTOR1);
       mgr1PreBal = await bPound.balanceOf(MANAGER1);
-      await mandateBook.settleMandate(toBN(0), toWei(35_000), {from: INVESTOR1});
+      await mandateBook.settleMandate(toBN(0), /* toWei(35_000) ,*/ {from: INVESTOR1});
       inv1EndBalShouldBe = toWei(150_000 /* initial balance */- 30_000 /* what he put in */+ 39_000); // 30_000 X 130%
       mgr1EndBalShouldBe = toWei(500_000 - (70_000 + 100_000 + 50_000) + (80 * 30_000 / 100) /* that's how much collateral was allocated to the mandate */ - (39_000 - 30_000) /* this is the lack of profit that has to be compensated */);
       (await bPound.balanceOf(INVESTOR1)).should.be.bignumber.eq(inv1EndBalShouldBe);
