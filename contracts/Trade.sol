@@ -56,79 +56,45 @@ contract Trade is MandateBook {
         router = routerContract;
     }
 
-    // on agreement end, close all positions
-    function sellAll(uint256 agreementId)
-        external
-        payable
-        onlyAgreementManager(agreementId)
-    {
-        require(!agreementClosed[agreementId], "Agreement was closed");
-
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
-
-        require(
-            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
-            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
-            "Agreement active or closed"
-        );
-
-        uint256 balanceOnClose = 0;
-
-        Trade memory _t;
-
-        if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = balances[agreementId].init;
-            return;
+    // return profit by agreement, depend on first known amount
+    // returns absolute value gain or loss (positive is indicator)
+    function countProfit(uint256 agreementId) public view returns (uint256 amount, bool positive) {
+        if (balances[agreementId].init < balances[agreementId].counted) {
+            amount = balances[agreementId].counted.sub(balances[agreementId].init);
+            positive = true;
+        } else {
+            amount = balances[agreementId].init.sub(balances[agreementId].counted);
+            positive = false;
         }
 
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
-            if (i == 0) {
-                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
-            }
-            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
-            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
-        }
+        return (amount, positive);
+    }
 
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
-            if (!markedTokens[agreementId][_t.toAsset]) {
+    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public view returns (uint256 amountAssetX) {
+        return _excludeFees(priceAssetX.mul(amountAssetD).div(priceAssetD));
+    }
 
-                if(_t.toAsset == address(0)) {
-                    // get prices
-                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(
-                        IUniswapV2Router01(router).WETH(),
-                        getBaseAsset(agreementId)
-                    );
+    // @dev
+    // @param amount
+    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public view returns (uint256 profit) {
+        return _excludeFees(sellPrice.mul(amount).sub(buyPrice.mul(amount)));
+    }
 
-                    swapETHForToken(
-                        agreementId,
-                        _t.toAsset, // tokenOut,
-                        countedBalance[agreementId][getBaseAsset(agreementId)], // amountOut // TODO: bug need get price then set in
-                        countedBalance[agreementId][address(0)], // amountInMax // TODO: bug maybe not
-                        block.timestamp.add(timeFrame) //deadline
-                    );
-                } else {
-                    // get prices
-                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(_t.toAsset, getBaseAsset(agreementId));
+    // @dev tokenA, tokenB
+    function getPrice(address tokenA, address tokenB) public view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
+        IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
+        (price0Cumulative, price1Cumulative,) = UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
+        return (price0Cumulative, price1Cumulative);
+    }
 
-                    swapTokenToToken(
-                        agreementId, //uint256 agreementId,
-                        _t.fromAsset, //address tokenIn,
-                        _t.toAsset, //address tokenOut,
-                        countedBalance[agreementId][_t.toAsset], //uint256 amountIn, // TODO: bug maybe not
-                        countedBalance[agreementId][getBaseAsset(agreementId)], //uint256 amountOutMin, // TODO: bug need get price then set in
-                        block.timestamp.add(timeFrame) //uint256 deadline
-                    );
-                }
-                balanceOnClose += 0; // TODO: need add
+    // @dev get liquidity for token A, B.
+    function getLiquidity(address tokenA, address tokenB) public view returns(uint256, uint256) {
+        IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
+        uint112 reserve0;
+        uint112 reserve1;
+        (reserve0, reserve1,) = _pair.getReserves();
 
-            }
-            markedTokens[agreementId][_t.toAsset] = true;
-        }
-
-        balances[agreementId].counted = balanceOnClose; // TODO: set here amount out
-        agreementClosed[agreementId] = true;
+        return (reserve0, reserve1);
     }
 
     function getFinalBalance(uint256 agreementId) public view returns (uint) {
@@ -276,50 +242,84 @@ contract Trade is MandateBook {
         }));
     }
 
-    // return profit by agreement, depend on first known amount
-    // returns absolute value gain or loss (positive is indicator)
-    function countProfit(uint256 agreementId) public view returns (uint256 amount, bool positive) {
-        if (balances[agreementId].init < balances[agreementId].counted) {
-            amount = balances[agreementId].counted.sub(balances[agreementId].init);
-            positive = true;
-        } else {
-            amount = balances[agreementId].init.sub(balances[agreementId].counted);
-            positive = false;
+    // on agreement end, close all positions
+    function sellAll(uint256 agreementId)
+    external
+    payable
+    onlyAgreementManager(agreementId)
+    {
+        require(!agreementClosed[agreementId], "Agreement was closed");
+
+        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
+        require(
+            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
+            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
+            "Agreement active or closed"
+        );
+
+        uint256 balanceOnClose = 0;
+
+        Trade memory _t;
+
+        if (countTrades(agreementId) == 0) {
+            balances[agreementId].counted = balances[agreementId].init;
+            return;
         }
 
-        return (amount, positive);
+        for (uint i = 0; i < countTrades(agreementId); i++) {
+            _t = trades[agreementId][i];
+            if (i == 0) {
+                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
+            }
+            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
+            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
+        }
+
+        for (uint i = 0; i < countTrades(agreementId); i++) {
+            _t = trades[agreementId][i];
+            if (!markedTokens[agreementId][_t.toAsset]) {
+
+                if(_t.toAsset == address(0)) {
+                    // get prices
+                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(
+                        IUniswapV2Router01(router).WETH(),
+                        getBaseAsset(agreementId)
+                    );
+
+                    swapETHForToken(
+                        agreementId,
+                        _t.toAsset, // tokenOut,
+                        countedBalance[agreementId][getBaseAsset(agreementId)], // amountOut // TODO: bug need get price then set in
+                        countedBalance[agreementId][address(0)], // amountInMax // TODO: bug maybe not
+                        block.timestamp.add(timeFrame) //deadline
+                    );
+                } else {
+                    // get prices
+                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(_t.toAsset, getBaseAsset(agreementId));
+
+                    swapTokenToToken(
+                        agreementId, //uint256 agreementId,
+                        _t.fromAsset, //address tokenIn,
+                        _t.toAsset, //address tokenOut,
+                        countedBalance[agreementId][_t.toAsset], //uint256 amountIn, // TODO: bug maybe not
+                        countedBalance[agreementId][getBaseAsset(agreementId)], //uint256 amountOutMin, // TODO: bug need get price then set in
+                        block.timestamp.add(timeFrame) //uint256 deadline
+                    );
+                }
+                balanceOnClose += 0; // TODO: need add
+
+            }
+            markedTokens[agreementId][_t.toAsset] = true;
+        }
+
+        balances[agreementId].counted = balanceOnClose; // TODO: set here amount out
+        agreementClosed[agreementId] = true;
     }
 
-    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public view returns (uint256 amountAssetX) {
-        return _excludeFees(priceAssetX.mul(amountAssetD).div(priceAssetD));
-    }
-
-    // @dev
-    // @param amount
-    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public view returns (uint256 profit) {
-        return _excludeFees(sellPrice.mul(amount).sub(buyPrice.mul(amount)));
-    }
-
-     function _excludeFees(uint256 amount) internal view returns (uint256) {
-         uint OPDecimal = 1000; // because used less then 100
-         return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
-    }
-
-    // @dev tokenA, tokenB
-    function getPrice(address tokenA, address tokenB) public view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
-        IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
-        (price0Cumulative, price1Cumulative,) = UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
-        return (price0Cumulative, price1Cumulative);
-    }
-
-    // @dev get liquidity for token A, B.
-    function getLiquidity(address tokenA, address tokenB) public view returns(uint256, uint256) {
-        IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
-        uint112 reserve0;
-        uint112 reserve1;
-        (reserve0, reserve1,) = _pair.getReserves();
-
-        return (reserve0, reserve1);
+    function _excludeFees(uint256 amount) internal view returns (uint256) {
+        uint OPDecimal = 1000; // because used less then 100
+        return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
     }
 
     modifier canTrade(uint256 agreementId, address outAddress) {
