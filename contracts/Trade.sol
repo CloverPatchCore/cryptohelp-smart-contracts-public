@@ -136,7 +136,7 @@ contract Trade is MandateBook {
 
         require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
 
-        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn);
+//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
         TransferHelper.safeApprove(tokenIn, address(router), amountIn);
 
         // amountOutMin must be retrieved from an oracle of some kind
@@ -148,7 +148,7 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: tokenIn,
@@ -178,7 +178,7 @@ contract Trade is MandateBook {
 
         require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
 
-        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn);
+//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
         TransferHelper.safeApprove(tokenIn, address(router), amountIn);
 
         // amountOutMin must be retrieved from an oracle of some kind
@@ -190,7 +190,7 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForETH(amountIn, amountOutMin, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForETH(amountIn, amountOutMin, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: tokenIn,
@@ -232,7 +232,7 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapETHForExactTokens(amountOut, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapETHForExactTokens(amountOut, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: address(0), // address 0x0 becouse sent the ether
