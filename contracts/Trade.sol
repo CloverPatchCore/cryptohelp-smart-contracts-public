@@ -149,13 +149,13 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, msg.sender, deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: tokenIn,
             toAsset: tokenOut,
             amountIn: amountIn,
-            amountOut: _excludeFees(amountOutMin),
+            amountOut: amounts[amounts.length - 1],
             timestamp: block.timestamp
         }));
     }
@@ -191,13 +191,13 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        IUniswapV2Router01(router).swapExactTokensForETH(amountIn, amountOutMin, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForETH(amountIn, amountOutMin, path, msg.sender, deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: tokenIn,
             toAsset: address(0), // address 0x0 becouse receive the ether
             amountIn: amountIn,
-            amountOut: _excludeFees(amountOutMin),
+            amountOut: amounts[amounts.length - 1],
             timestamp: block.timestamp
         }));
     }
@@ -233,13 +233,13 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        IUniswapV2Router01(router).swapETHForExactTokens(amountOut, path, msg.sender, deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapETHForExactTokens(amountOut, path, msg.sender, deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: address(0), // address 0x0 becouse sent the ether
             toAsset: tokenOut,
             amountIn: amountInMax,
-            amountOut: _excludeFees(amountOut),
+            amountOut: amounts[amounts.length - 1],
             timestamp: block.timestamp
         }));
     }
