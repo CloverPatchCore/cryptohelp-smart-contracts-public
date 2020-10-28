@@ -23,7 +23,6 @@ contract Trade is MandateBook {
     IUniswapV2Factory factory;
 
     struct Balance {
-        uint256 init; // on start
         uint256 counted; // equivalent balance on every trade
     }
 
@@ -61,11 +60,11 @@ contract Trade is MandateBook {
     // return profit by agreement, depend on first known amount
     // returns absolute value gain or loss (positive is indicator)
     function countProfit(uint256 agreementId) public view returns (uint256 amount, bool positive) {
-        if (balances[agreementId].init < balances[agreementId].counted) {
-            amount = balances[agreementId].counted.sub(balances[agreementId].init);
+        if (_getInitBalance(agreementId) < balances[agreementId].counted) {
+            amount = balances[agreementId].counted.sub(_getInitBalance(agreementId));
             positive = true;
         } else {
-            amount = balances[agreementId].init.sub(balances[agreementId].counted);
+            amount = _getInitBalance(agreementId).sub(balances[agreementId].counted);
             positive = false;
         }
 
@@ -251,7 +250,7 @@ contract Trade is MandateBook {
         for (uint i = countedTrades[agreementId]; i < l; i++) {
             _t = trades[agreementId][i];
             if (i == 0) {
-                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
+                countedBalance[agreementId][_t.fromAsset] = _getInitBalance(agreementId);
             }
             countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
             countedBalance[agreementId][_t.toAsset] += _t.amountOut;
@@ -288,7 +287,7 @@ contract Trade is MandateBook {
         );
 
         if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = balances[agreementId].init;
+            balances[agreementId].counted = _getInitBalance(agreementId);
             return;
         }
 
@@ -344,7 +343,7 @@ contract Trade is MandateBook {
         Trade memory _t;
 
         if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = balances[agreementId].init;
+            balances[agreementId].counted = _getInitBalance(agreementId);
             return;
         }
 
@@ -353,7 +352,7 @@ contract Trade is MandateBook {
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
             if (i == 0) {
-                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
+                countedBalance[agreementId][_t.fromAsset] = _getInitBalance(agreementId);
             }
             countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
             countedBalance[agreementId][_t.toAsset] += _t.amountOut;
@@ -402,6 +401,10 @@ contract Trade is MandateBook {
     function _excludeFees(uint256 amount) internal view returns (uint256) {
         uint OPDecimal = 1000; // because used less then 100
         return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
+    }
+
+    function _getInitBalance(uint256 agreementId) internal view returns (uint256) {
+        return (IMB.getAgreement(agreementId)).__committedCapital;
     }
 
     modifier canTrade(uint256 agreementId, address outAddress) {
