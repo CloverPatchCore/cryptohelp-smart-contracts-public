@@ -120,3 +120,5 @@ dist
 build/
 
 package-lock.json
+
+test/UniswapTest.js

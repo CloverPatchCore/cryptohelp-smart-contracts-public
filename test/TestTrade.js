@@ -1,9 +1,12 @@
-const Web3 = require("web3");
+const { web3 } = require("@openzeppelin/test-helpers/src/setup");
+const { BN, toBN, toChecksumAddress } = web3.utils;
+const { Contract, constants } = require('ethers');
+const { MockProvider } = require("ethereum-waffle");
+require('dotenv').config();
+require("chai").use(require("chai-bn")(BN)).should();
 
-const {web3} = require("@openzeppelin/test-helpers/src/setup");
 const Trade = artifacts.require('./Trade');
 const MockERC20 = artifacts.require('./MockERC20');
-
 const UniswapV2Router02 = artifacts.require('./UniswapV2Router02');
 const UniswapV2Factory = artifacts.require('./UniswapV2Factory');
 const UniswapV2Pair = artifacts.require('./UniswapV2Pair');
@@ -12,17 +15,7 @@ const _require = require("app-root-path").require;
 const BlockchainCaller = _require("/utils/blockchain_caller");
 
 const chain = new BlockchainCaller(web3);
-const { BN, toBN, toChecksumAddress } = web3.utils;
-
-
-require("chai").use(require("chai-bn")(BN)).should();
-
-const { Contract, constants } = require('ethers');
 const { AddressZero, Zero, MaxUint256 } = constants;
-
-const { MockProvider } = require("ethereum-waffle");
-
-require('dotenv').config();
 
 // load env constants
 const { MNEMONIC_PHRASE } = process.env;
