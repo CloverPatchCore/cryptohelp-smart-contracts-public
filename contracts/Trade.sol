@@ -159,7 +159,7 @@ contract Trade is MandateBook {
         }));
     }
 
-    // @dev sell ERC20 token for ETH
+    // @dev sell ERC20 token for Wrapped ETH (not ETH)
     function swapTokenForETH(
         uint256 agreementId,
         address tokenIn,
@@ -190,11 +190,11 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForETH(amountIn, amountOutMin, path, address(this), deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
             fromAsset: tokenIn,
-            toAsset: address(0), // address 0x0 becouse receive the ether
+            toAsset: WETH, // address 0x0 becouse receive the ether
             amountIn: amountIn,
             amountOut: amounts[amounts.length - 1],
             timestamp: block.timestamp
@@ -210,11 +210,8 @@ contract Trade is MandateBook {
         uint256 deadline
     )
         public
-        payable
         canTrade(agreementId, tokenOut)
     {
-        require(amountInMax >= msg.value, "Ethers not enough");
-
         address WETH = IUniswapV2Router01(router).WETH();
 
         require(factory.getPair(WETH, tokenOut) != address(0), "Pair not exist");
@@ -222,6 +219,9 @@ contract Trade is MandateBook {
         (uint256 reserve0, uint256 reserve1) = getLiquidity(WETH, tokenOut);
 
         require(reserve0 >= amountInMax && reserve1 >= amountOut, "Not enough liquidity");
+
+//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
+        TransferHelper.safeApprove(WETH, address(router), amountInMax);
 
         // amountOutMin must be retrieved from an oracle of some kind
         address[] memory path = new address[](2);
@@ -232,10 +232,10 @@ contract Trade is MandateBook {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapETHForExactTokens(amountOut, path, address(this), deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountInMax, amountOut, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
-            fromAsset: address(0), // address 0x0 becouse sent the ether
+            fromAsset: WETH, // address 0x0 becouse sent the ether
             toAsset: tokenOut,
             amountIn: amountInMax,
             amountOut: amounts[amounts.length - 1],
