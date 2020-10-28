@@ -45,6 +45,8 @@ contract Trade is MandateBook {
 
     uint256 internal exchangeFee = 3; // 0.3 % for uniswap
 
+    mapping (uint256 => uint256) public countedTrades; // agreement id -> counter ticker
+
     // is was added to counted balance
     mapping(uint => mapping(address => bool)) markedTokens; // agreement id -> mapping
 
@@ -242,11 +244,39 @@ contract Trade is MandateBook {
         }));
     }
 
-    // on agreement end, close all positions
-    function sellAll(uint256 agreementId)
-    external
-    payable
-    onlyAgreementManager(agreementId)
+    // @dev sell asset with optimal price by agreement id
+    function countPossibleTradesDirection(uint256 agreementId) public {
+        Trade memory _t;
+        uint l = countTrades(agreementId);
+        for (uint i = countedTrades[agreementId]; i < l; i++) {
+            _t = trades[agreementId][i];
+            if (i == 0) {
+                countedBalance[agreementId][_t.fromAsset] = balances[agreementId].init;
+            }
+            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
+            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
+        }
+        countedTrades[agreementId] = l;
+    }
+
+    // @dev get optimal amount in base asset, depend on agreement
+    function getOutAmount(uint256 agreementId, address asset) public returns (uint amountOut) {
+        (uint reserveA, uint reserveB) = getLiquidity(
+            (address(0) == asset) ? IUniswapV2Router01(router).WETH() : asset,
+            getBaseAsset(agreementId)
+        );
+        amountOut = IUniswapV2Router02(router).getAmountOut(
+            countedBalance[agreementId][address(0)], // amountIn
+            reserveA,
+            reserveB
+        );
+    }
+
+    // @dev sell one asset with optimal price by agreement id // should work properly
+    function sell(uint256 agreementId, address asset)
+        external
+        payable
+        onlyAgreementManager(agreementId)
     {
         require(!agreementClosed[agreementId], "Agreement was closed");
 
@@ -258,7 +288,60 @@ contract Trade is MandateBook {
             "Agreement active or closed"
         );
 
-        uint256 balanceOnClose = 0;
+        if (countTrades(agreementId) == 0) {
+            balances[agreementId].counted = balances[agreementId].init;
+            return;
+        }
+
+        uint amountIn;
+        uint amountOut;
+
+        require(!markedTokens[agreementId][asset], "Token has been swap yet");
+
+        if (address(0) == asset) {
+            amountIn = countedBalance[agreementId][address(0)];
+            amountOut = getOutAmount(agreementId, asset);
+
+            swapETHForToken(
+                agreementId,
+                getBaseAsset(agreementId), // tokenOut,
+                amountOut, // amountOut
+                amountIn, // amountInMax
+                block.timestamp.add(timeFrame) //deadline
+            );
+        } else {
+            amountIn = countedBalance[agreementId][asset];
+            amountOut = getOutAmount(agreementId, asset);
+
+            swapTokenToToken(
+                agreementId, //uint256 agreementId,
+                asset, //address tokenIn,
+                getBaseAsset(agreementId), //address tokenOut,
+                amountIn, //uint256 amountIn,
+                amountOut, //uint256 amountOutMin,
+                block.timestamp.add(timeFrame) //uint256 deadline
+            );
+        }
+
+        balances[agreementId].counted += amountOut;
+        markedTokens[agreementId][asset] = true;
+    }
+
+    // on agreement end, close all positions
+    function sellAll(uint256 agreementId)
+        external
+        payable
+        onlyAgreementManager(agreementId)
+    {
+        require(!agreementClosed[agreementId], "Agreement was closed");
+
+        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
+        require(
+            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
+            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
+            "Agreement active or closed"
+        );
 
         Trade memory _t;
 
@@ -266,6 +349,8 @@ contract Trade is MandateBook {
             balances[agreementId].counted = balances[agreementId].init;
             return;
         }
+
+        countPossibleTradesDirection(agreementId);
 
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
@@ -279,7 +364,6 @@ contract Trade is MandateBook {
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
             if (!markedTokens[agreementId][_t.toAsset]) {
-
                 if(_t.toAsset == address(0)) {
                     // get prices
                     (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(
@@ -307,13 +391,13 @@ contract Trade is MandateBook {
                         block.timestamp.add(timeFrame) //uint256 deadline
                     );
                 }
-                balanceOnClose += 0; // TODO: need add
 
+                balances[agreementId].counted += 0; // TODO: set here amount out
             }
+
             markedTokens[agreementId][_t.toAsset] = true;
         }
 
-        balances[agreementId].counted = balanceOnClose; // TODO: set here amount out
         agreementClosed[agreementId] = true;
     }
 
