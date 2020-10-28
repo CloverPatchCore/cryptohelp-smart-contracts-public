@@ -276,7 +276,6 @@ contract Trade is MandateBook {
     function sell(uint256 agreementId, address asset)
         external
         payable
-        onlyAgreementManager(agreementId)
     {
         require(!agreementClosed[agreementId], "Agreement was closed");
 
@@ -331,7 +330,6 @@ contract Trade is MandateBook {
     function sellAll(uint256 agreementId)
         external
         payable
-        onlyAgreementManager(agreementId)
     {
         require(!agreementClosed[agreementId], "Agreement was closed");
 
