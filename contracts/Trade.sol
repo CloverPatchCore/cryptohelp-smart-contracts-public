@@ -117,8 +117,7 @@ contract Trade is MandateBook {
     function getBaseAsset(uint256 agreementId) public view returns (address) {
         return (IMB.getAgreement(agreementId)).baseCoin;
     }
-    
-    // @dev swap any ERC20 token to any ERC20 token
+
     function swapTokenToToken(
         uint256 agreementId,
         address tokenIn,
@@ -130,36 +129,16 @@ contract Trade is MandateBook {
         public
         canTrade(agreementId, tokenOut)
     {
-        require(factory.getPair(tokenIn, tokenOut) != address(0), "Pair not exist");
-
-        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
-
-        require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
-
-//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
-        TransferHelper.safeApprove(tokenIn, address(router), amountIn);
-
-        // amountOutMin must be retrieved from an oracle of some kind
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut;
-
-        if (deadline == 0) {
-            deadline = block.timestamp + timeFrame;
-        }
-
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
-
-        trades[agreementId].push(Trade({
-            fromAsset: tokenIn,
-            toAsset: tokenOut,
-            amountIn: amountIn,
-            amountOut: amounts[amounts.length - 1],
-            timestamp: block.timestamp
-        }));
+        _swapTokenToToken(
+            agreementId,
+            tokenIn,
+            tokenOut,
+            amountIn,
+            amountOut,
+            deadline
+        );
     }
 
-    // @dev sell ERC20 token for Wrapped ETH (not ETH)
     function swapTokenForETH(
         uint256 agreementId,
         address tokenIn,
@@ -170,38 +149,16 @@ contract Trade is MandateBook {
         public
         canTrade(agreementId, address(0))
     {
-        address WETH = IUniswapV2Router01(router).WETH();
-
-        require(factory.getPair(tokenIn, WETH) != address(0), "Pair not exist");
-
-        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, WETH);
-
-        require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
-
-//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
-        TransferHelper.safeApprove(tokenIn, address(router), amountIn);
-
-        // amountOutMin must be retrieved from an oracle of some kind
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = WETH;
-
-        if (deadline == 0) {
-            deadline = block.timestamp + timeFrame;
-        }
-
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
-
-        trades[agreementId].push(Trade({
-            fromAsset: tokenIn,
-            toAsset: WETH, // address 0x0 becouse receive the ether
-            amountIn: amountIn,
-            amountOut: amounts[amounts.length - 1],
-            timestamp: block.timestamp
-        }));
+        _swapTokenToToken(
+            agreementId,
+            tokenIn,
+            IUniswapV2Router01(router).WETH(),
+            amountIn,
+            amountOutMin,
+            deadline
+        );
     }
 
-    // @dev buy ERC20 token for ETH
     function swapETHForToken(
         uint256 agreementId,
         address tokenOut,
@@ -212,36 +169,51 @@ contract Trade is MandateBook {
         public
         canTrade(agreementId, tokenOut)
     {
-        address WETH = IUniswapV2Router01(router).WETH();
+        _swapTokenToToken(
+            agreementId,
+            IUniswapV2Router01(router).WETH(), //address tokenIn,
+            tokenOut,
+            amountInMax,
+            amountOut,
+            deadline
+        );
+    }
 
-        require(factory.getPair(WETH, tokenOut) != address(0), "Pair not exist");
+    function _swapTokenToToken(
+        uint256 agreementId,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 deadline
+    ) internal {
+        require(factory.getPair(tokenIn, tokenOut) != address(0), "Pair not exist");
 
-        (uint256 reserve0, uint256 reserve1) = getLiquidity(WETH, tokenOut);
+        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
 
-        require(reserve0 >= amountInMax && reserve1 >= amountOut, "Not enough liquidity");
+        require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
 
-//        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn); // @dev if required
-        TransferHelper.safeApprove(WETH, address(router), amountInMax);
+        TransferHelper.safeApprove(tokenIn, address(router), amountIn);
 
-        // amountOutMin must be retrieved from an oracle of some kind
         address[] memory path = new address[](2);
-        path[0] = WETH;
+        path[0] = tokenIn;
         path[1] = tokenOut;
 
         if (deadline == 0) {
             deadline = block.timestamp + timeFrame;
         }
 
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountInMax, amountOut, path, address(this), deadline);
+        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
 
         trades[agreementId].push(Trade({
-            fromAsset: WETH, // address 0x0 becouse sent the ether
+            fromAsset: tokenIn,
             toAsset: tokenOut,
-            amountIn: amountInMax,
+            amountIn: amountIn,
             amountOut: amounts[amounts.length - 1],
             timestamp: block.timestamp
         }));
     }
+
 
     // @dev sell asset with optimal price by agreement id
     function countPossibleTradesDirection(uint256 agreementId) public {
@@ -348,15 +320,6 @@ contract Trade is MandateBook {
         }
 
         countPossibleTradesDirection(agreementId);
-
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
-            if (i == 0) {
-                countedBalance[agreementId][_t.fromAsset] = _getInitBalance(agreementId);
-            }
-            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
-            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
-        }
 
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
