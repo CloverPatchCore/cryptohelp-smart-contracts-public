@@ -22,8 +22,10 @@ module.exports = async function (deployer, network, accounts) {
   } else
   if ("development" === network) {
     WETH = await MockERC20.new('WETH', 'WETH', toWei('100000000'), { from: OWNER });
-    factory = (await UniswapV2Factory.new(OWNER, { from: OWNER })).address;
-    router2 = (await UniswapV2Router02.new(factory.address, WETH.address, { from: OWNER })).address;
+    const factoryInstance = await UniswapV2Factory.new(OWNER, { from: OWNER });
+    const router2Instance = await UniswapV2Router02.new(factoryInstance.address, WETH.address, { from: OWNER });
+    factory = factoryInstance.address
+    router2 = router2Instance.address
   } else {
     throw new Error("Not configured")
   }
