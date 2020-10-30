@@ -71,16 +71,6 @@ contract Trade is MandateBook {
         return (amount, positive);
     }
 
-    function calcAmount(uint256 amountAssetD, uint256 priceAssetD, uint256 priceAssetX) public view returns (uint256 amountAssetX) {
-        return _excludeFees(priceAssetX.mul(amountAssetD).div(priceAssetD));
-    }
-
-    // @dev
-    // @param amount
-    function calcPureProfit(uint256 amount, uint256 buyPrice, uint256 sellPrice) public view returns (uint256 profit) {
-        return _excludeFees(sellPrice.mul(amount).sub(buyPrice.mul(amount)));
-    }
-
     // @dev tokenA, tokenB
     function getPrice(address tokenA, address tokenB) public view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
         IUniswapV2Pair _pair = IUniswapV2Pair(UniswapV2Library.pairFor(address(factory), tokenA, tokenB));
@@ -138,46 +128,6 @@ contract Trade is MandateBook {
             deadline
         );
     }
-
-//    function swapTokenForETH(
-//        uint256 agreementId,
-//        address tokenIn,
-//        uint256 amountIn,
-//        uint256 amountOutMin,
-//        uint256 deadline
-//    )
-//        public
-//        canTrade(agreementId, address(0))
-//    {
-//        _swapTokenToToken(
-//            agreementId,
-//            tokenIn,
-//            IUniswapV2Router01(router).WETH(),
-//            amountIn,
-//            amountOutMin,
-//            deadline
-//        );
-//    }
-//
-//    function swapETHForToken(
-//        uint256 agreementId,
-//        address tokenOut,
-//        uint256 amountOut,
-//        uint256 amountInMax,
-//        uint256 deadline
-//    )
-//        public
-//        canTrade(agreementId, tokenOut)
-//    {
-//        _swapTokenToToken(
-//            agreementId,
-//            IUniswapV2Router01(router).WETH(), //address tokenIn,
-//            tokenOut,
-//            amountInMax,
-//            amountOut,
-//            deadline
-//        );
-//    }
 
     function _swapTokenToToken(
         uint256 agreementId,
@@ -330,11 +280,6 @@ contract Trade is MandateBook {
 
         agreementClosed[agreementId] = true;
     }
-
-//    function _excludeFees(uint256 amount) internal view returns (uint256) {
-//        uint OPDecimal = 1000; // because used less then 100
-//        return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
-//    }
 
     function _getInitBalance(uint256 agreementId) internal view returns (uint256) {
         return (IMB.getAgreement(agreementId)).__committedCapital;
