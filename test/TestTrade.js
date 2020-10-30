@@ -65,13 +65,9 @@ async function addLiquidity({
     throw new Error('Pair: contract should be the instance');
   }
 
-  console.log((await token0.balanceOf(from)).toString());
-  console.log((await token1.balanceOf(from)).toString());
-  process.exit(123)
-
-  await token0.transfer(toChecksumAddress(pair.address), token0Amount, {from: from})
-  await token1.transfer(toChecksumAddress(pair.address), token1Amount, {from: from})
-  await pair.mint(wallet, overrides)
+  await token0.transfer(toChecksumAddress(pair.address), token0Amount, { from: from })
+  await token1.transfer(toChecksumAddress(pair.address), token1Amount, { from: from })
+  await pair.mint(wallet, overrides, { from: from })
 }
 
 contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUTSIDER, TOKENHOLDER1, LPBALANCER]) => {
@@ -134,71 +130,58 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       let result = await factory.createPair(...WETH_DAI);
       let pair = result.logs[0].args.pair;
 
-      await addLiquidity({
-        pair: pair, // object
-        wallet: TOKENHOLDER1,  // object
-        overrides: 0,
-        token0: WETH,
-        token1: DAI,
-        token0Amount: 0,
-        token1Amount: 0,
-      }, { from: TOKENHOLDER1 })
+      // await addLiquidity({
+      //   pair: toContract(pair, UniswapV2Pair.abi, provider), // object
+      //   wallet: MINTER,  // object
+      //   overrides: 0,
+      //   token0: WETH,
+      //   token1: DAI,
+      //   token0Amount: toWei('1'),
+      //   token1Amount: toWei('350'),
+      // }, { from: MINTER })
+
+      // 0) investors and manager get moneys
+      await DAI.transfer(MANAGER1, toWei(500_000), {from:MINTER});
+      await DAI.transfer(INVESTOR1, toWei(150_000), {from:MINTER});
+      await DAI.transfer(INVESTOR2, toWei(200_000), {from:MINTER});
+
+      // 1) create agreement
+      await trade.createAgreement(
+        DAI.address, /* USDT testnet for example TODO change for own mock */
+        30, /* targetReturnRate */
+        80, /* maxCollateralRateIfAvailable */
+        toWei(100_000), /* collatAmount */
+        DURATION1,  /* duration   */
+        OPENPERIOD1, /* open period */
+        { from: MANAGER1 }
+      );
+
+      // 2) agreement going to the end
+      //let's have IVNESTOR1 commit to Agreement
+      await DAI.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
+      //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
+      await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), {from: INVESTOR1});
     })
 
-    describe('Swap ERC20 token to ERC20 token', async () => {
-      it('Should be possible to create new exchange', async () => {
-        let agreementId = 0,
-          tokenIn = WETH.address,
-          tokenOut = DAI.address,
-          amountIn = 1,
-          amountOutMin = 380,
-          deadline = 0;
+    it('Should be possible to create new exchange', async () => {
 
-        await trade.swapTokenToToken(
-          tokenIn,
-          tokenOut,
-          amountIn,
-          amountOutMin,
-          deadline
-        );
-      })
-      it('Should be possible to create 2 new exchanges', async () => {})
-    });
+      await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000); // status agreement still ACTIVE
 
-    describe('Swap ETH to ERC20 token', async () => {
-      it('Should be possible to create new exchange', async () => {
-        let agreementId = 0,
-          tokenOut = WETH.address,
-          amountOut = 997,
-          amountInMax = 1000,
-          deadline = 0;
+      let agreementId = 0,
+        tokenIn = WETH.address,
+        tokenOut = DAI.address,
+        amountIn = 1,
+        amountOutMin = 380,
+        deadline = 0;
 
-        await trade.swapETHForToken(
-          agreementId,
-          tokenOut,
-          amountOut,
-          amountInMax,
-          deadline
-        );
-      })
-    });
-
-    describe('Swap ERC20 token to ETH', async () => {
-      it('Should be possible to create new exchange', async () => {
-        let agreementId = 0,
-          tokenIn = WETH.address,
-          amountIn = 1000,
-          amountOutMin = 997,
-          deadline = 0;
-
-        await trade.swapTokenForETH(
-          agreementId,
-          tokenIn,
-          amountIn,
-          amountOutMin,
-          deadline
-        );
-      })
+      await trade.swapTokenToToken(
+        agreementId,
+        tokenIn,
+        tokenOut,
+        amountIn,
+        amountOutMin,
+        deadline
+      );
     });
   })
 
@@ -312,7 +295,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should not be possible to close agreement before deadline', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000); // status agreement still ACTIVE
 
-      await expectRevert(trade.sellAll(agreementId), "Agreement active or closed");
+      await expectRevert(trade.sell(agreementId, { from: MANAGER1 }), "Agreement active or closed");
     })
 
     it('Should not be possible to close agreement twice', async () => {
@@ -377,7 +360,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       await expectRevert(factory.createPair(...WETH_DAI), "UniswapV2: PAIR_EXISTS")
     })
 
-    it.only('Should be possible create new pair and make liquidity', async () => {
+    it('Should be possible create new pair and make liquidity', async () => {
       let result = await factory.createPair(...WETH_DAI);
       let pair = result.logs[0].args.pair;
 
@@ -390,8 +373,6 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         token0Amount: toWei(1),
         token1Amount: toWei(380),
       }, { from: TOKENHOLDER1 });
-
-
     })
 
     it('Should be possible get cumulative price', async () => {
@@ -435,61 +416,6 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       let baseAsset = await trade.getBaseAsset(agreementId);
 
       assert.equal(baseAsset, DAI.address, "base asset lost");
-    })
-
-    it('Should be possible to count profit', async () => {
-      let agreementId = 0;
-
-      let { amount, positive } = await trade.countProfit(agreementId);
-
-      assert.equal(amount, 0, "calculated result has no expected value");
-      assert.equal(positive, false, "calculated result has no expected value");
-    })
-
-    it('Should be possible to get pure profit', async () => {
-      let amountAssetD = 1000000,
-        priceAssetD = 250,
-        priceAssetX = 320;
-
-      const excludeFee = (amount) => {
-        amount = toBN(amount)
-        const fee = toBN(3), feeDecimal = toBN(1000);
-        return amount - ((amount / feeDecimal) * fee);
-      }
-
-      let expectedProfit = excludeFee(toBN(priceAssetX) * toBN(amountAssetD) - toBN(priceAssetD) * toBN(amountAssetD));
-      let profit = await trade.calcPureProfit(amountAssetD, priceAssetD, priceAssetX);
-
-      assert.equal(profit.toString(), expectedProfit, "calculated result has no expected value");
-    })
-
-    it('Should be possible get calculated amount', async () => {
-      let amountAssetD = 1000000,
-        priceAssetD = 250,
-        priceAssetX = 320;
-
-      const excludeFee = (amount) => {
-        amount = toBN(amount)
-        const fee = toBN(3), feeDecimal = toBN(1000);
-        return amount - ((amount / feeDecimal) * fee);
-      }
-
-      let expectedAmount = excludeFee(toBN(priceAssetX) * toBN(amountAssetD) / toBN(priceAssetD));
-      let calculatedAmount = await trade.calcAmount(amountAssetD, priceAssetD, priceAssetX);
-
-      assert.equal(calculatedAmount.toString(), expectedAmount, "calculated result has no expected value");
-    })
-
-    // TODO: skipped becouse it internal method
-    it.skip('Should be possible get calculated amount', async () => {
-      const fee = 3,
-        feeDecimal = 1000;
-      let amountAssetD = 1000;
-
-      let expectedAmount = amountAssetD - ((amountAssetD / feeDecimal) * fee);
-      let calculatedAmount = await trade._excludeFees(amountAssetD);
-
-      assert.equal(calculatedAmount.toString(), expectedAmount, "calculated result has no expected value");
     })
   });
 })
