@@ -139,45 +139,45 @@ contract Trade is MandateBook {
         );
     }
 
-    function swapTokenForETH(
-        uint256 agreementId,
-        address tokenIn,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 deadline
-    )
-        public
-        canTrade(agreementId, address(0))
-    {
-        _swapTokenToToken(
-            agreementId,
-            tokenIn,
-            IUniswapV2Router01(router).WETH(),
-            amountIn,
-            amountOutMin,
-            deadline
-        );
-    }
-
-    function swapETHForToken(
-        uint256 agreementId,
-        address tokenOut,
-        uint256 amountOut,
-        uint256 amountInMax,
-        uint256 deadline
-    )
-        public
-        canTrade(agreementId, tokenOut)
-    {
-        _swapTokenToToken(
-            agreementId,
-            IUniswapV2Router01(router).WETH(), //address tokenIn,
-            tokenOut,
-            amountInMax,
-            amountOut,
-            deadline
-        );
-    }
+//    function swapTokenForETH(
+//        uint256 agreementId,
+//        address tokenIn,
+//        uint256 amountIn,
+//        uint256 amountOutMin,
+//        uint256 deadline
+//    )
+//        public
+//        canTrade(agreementId, address(0))
+//    {
+//        _swapTokenToToken(
+//            agreementId,
+//            tokenIn,
+//            IUniswapV2Router01(router).WETH(),
+//            amountIn,
+//            amountOutMin,
+//            deadline
+//        );
+//    }
+//
+//    function swapETHForToken(
+//        uint256 agreementId,
+//        address tokenOut,
+//        uint256 amountOut,
+//        uint256 amountInMax,
+//        uint256 deadline
+//    )
+//        public
+//        canTrade(agreementId, tokenOut)
+//    {
+//        _swapTokenToToken(
+//            agreementId,
+//            IUniswapV2Router01(router).WETH(), //address tokenIn,
+//            tokenOut,
+//            amountInMax,
+//            amountOut,
+//            deadline
+//        );
+//    }
 
     function _swapTokenToToken(
         uint256 agreementId,
@@ -214,7 +214,7 @@ contract Trade is MandateBook {
         }));
     }
 
-
+    // TODO: should be called once only after active period end
     // @dev sell asset with optimal price by agreement id
     function countPossibleTradesDirection(uint256 agreementId) public {
         Trade memory _t;
@@ -244,10 +244,11 @@ contract Trade is MandateBook {
     }
 
     // @dev sell one asset with optimal price by agreement id // should work properly
-    function sell(uint256 agreementId, address asset)
-        external
-        payable
-    {
+    function sell(uint256 agreementId, address asset) public {
+        _sell(agreementId, asset);
+    }
+
+    function _sell(uint256 agreementId, address asset) internal {
         require(!agreementClosed[agreementId], "Agreement was closed");
 
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
@@ -297,11 +298,8 @@ contract Trade is MandateBook {
         markedTokens[agreementId][asset] = true;
     }
 
-    // on agreement end, close all positions
-    function sellAll(uint256 agreementId)
-        external
-        payable
-    {
+    // @dev on agreement end, close all positions
+    function sellAll(uint256 agreementId) external {
         require(!agreementClosed[agreementId], "Agreement was closed");
 
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
@@ -324,35 +322,7 @@ contract Trade is MandateBook {
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
             if (!markedTokens[agreementId][_t.toAsset]) {
-                if(_t.toAsset == address(0)) {
-                    // get prices
-                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(
-                        IUniswapV2Router01(router).WETH(),
-                        getBaseAsset(agreementId)
-                    );
-
-                    swapETHForToken(
-                        agreementId,
-                        _t.toAsset, // tokenOut,
-                        countedBalance[agreementId][getBaseAsset(agreementId)], // amountOut // TODO: bug need get price then set in
-                        countedBalance[agreementId][address(0)], // amountInMax // TODO: bug maybe not
-                        block.timestamp.add(timeFrame) //deadline
-                    );
-                } else {
-                    // get prices
-                    (uint256 price0Cumulative, uint256 price1Cumulative) = getPrice(_t.toAsset, getBaseAsset(agreementId));
-
-                    swapTokenToToken(
-                        agreementId, //uint256 agreementId,
-                        _t.fromAsset, //address tokenIn,
-                        _t.toAsset, //address tokenOut,
-                        countedBalance[agreementId][_t.toAsset], //uint256 amountIn, // TODO: bug maybe not
-                        countedBalance[agreementId][getBaseAsset(agreementId)], //uint256 amountOutMin, // TODO: bug need get price then set in
-                        block.timestamp.add(timeFrame) //uint256 deadline
-                    );
-                }
-
-                balances[agreementId].counted += 0; // TODO: set here amount out
+                _sell(agreementId, deadline);
             }
 
             markedTokens[agreementId][_t.toAsset] = true;
@@ -361,10 +331,10 @@ contract Trade is MandateBook {
         agreementClosed[agreementId] = true;
     }
 
-    function _excludeFees(uint256 amount) internal view returns (uint256) {
-        uint OPDecimal = 1000; // because used less then 100
-        return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
-    }
+//    function _excludeFees(uint256 amount) internal view returns (uint256) {
+//        uint OPDecimal = 1000; // because used less then 100
+//        return amount.sub(amount.mul(exchangeFee).div(OPDecimal));
+//    }
 
     function _getInitBalance(uint256 agreementId) internal view returns (uint256) {
         return (IMB.getAgreement(agreementId)).__committedCapital;
