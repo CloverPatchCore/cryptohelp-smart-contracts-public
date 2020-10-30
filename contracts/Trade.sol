@@ -28,7 +28,7 @@ contract Trade is MandateBook {
 
     mapping (uint256 => Balance) public balances; // trader absolute profit
 
-    struct Trade {
+    struct TradeLog {
         address fromAsset;
         address toAsset;
         uint256 amountIn;
@@ -36,7 +36,7 @@ contract Trade is MandateBook {
         uint256 timestamp;
     }
 
-    mapping (uint256 => Trade[]) public trades; // used for logging trader activity by agreement
+    mapping (uint256 => TradeLog[]) public trades; // used for logging trader activity by agreement
 
     mapping (uint256 => bool) public agreementClosed;
 
@@ -98,7 +98,7 @@ contract Trade is MandateBook {
         return trades[agreementId].length;
     }
 
-    function getTrade(uint256 agreementId, uint256 index) public view returns (Trade memory) {
+    function getTrade(uint256 agreementId, uint256 index) public view returns (TradeLog memory) {
         require(index < countTrades(agreementId), "Trade not exist");
 
         return trades[agreementId][index];
@@ -113,7 +113,7 @@ contract Trade is MandateBook {
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
-        uint256 amountOutMin,
+        uint256 amountOut,
         uint256 deadline
     )
         public
@@ -129,45 +129,10 @@ contract Trade is MandateBook {
         );
     }
 
-    function _swapTokenToToken(
-        uint256 agreementId,
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 deadline
-    ) internal {
-        require(factory.getPair(tokenIn, tokenOut) != address(0), "Pair not exist");
-
-        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
-
-        require(reserve0 >= amountIn && reserve1 >= amountOutMin, "Not enough liquidity");
-
-        TransferHelper.safeApprove(tokenIn, address(router), amountIn);
-
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut;
-
-        if (deadline == 0) {
-            deadline = block.timestamp + timeFrame;
-        }
-
-        uint[] memory amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOutMin, path, address(this), deadline);
-
-        trades[agreementId].push(Trade({
-            fromAsset: tokenIn,
-            toAsset: tokenOut,
-            amountIn: amountIn,
-            amountOut: amounts[amounts.length - 1],
-            timestamp: block.timestamp
-        }));
-    }
-
     // TODO: should be called once only after active period end
     // @dev sell asset with optimal price by agreement id
     function countPossibleTradesDirection(uint256 agreementId) public {
-        Trade memory _t;
+        TradeLog memory _t;
         uint l = countTrades(agreementId);
         for (uint i = countedTrades[agreementId]; i < l; i++) {
             _t = trades[agreementId][i];
@@ -181,7 +146,7 @@ contract Trade is MandateBook {
     }
 
     // @dev get optimal amount in base asset, depend on agreement
-    function getOutAmount(uint256 agreementId, address asset) public returns (uint amountOut) {
+    function getOutAmount(uint256 agreementId, address asset) public view returns (uint amountOut) {
         (uint reserveA, uint reserveB) = getLiquidity(
             (address(0) == asset) ? IUniswapV2Router01(router).WETH() : asset,
             getBaseAsset(agreementId)
@@ -196,6 +161,43 @@ contract Trade is MandateBook {
     // @dev sell one asset with optimal price by agreement id // should work properly
     function sell(uint256 agreementId, address asset) public {
         _sell(agreementId, asset);
+    }
+
+    // @dev on agreement end, close all positions
+    function sellAll(uint256 agreementId) external {
+        require(!agreementClosed[agreementId], "Agreement was closed");
+
+        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
+        require(
+            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
+            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
+            "Agreement active or closed"
+        );
+
+        TradeLog memory _t;
+
+        if (countTrades(agreementId) == 0) {
+            balances[agreementId].counted = _getInitBalance(agreementId);
+            return;
+        }
+
+        countPossibleTradesDirection(agreementId);
+
+        for (uint i = 0; i < countTrades(agreementId); i++) {
+            _t = trades[agreementId][i];
+            if (!markedTokens[agreementId][_t.toAsset]) {
+                _sell(agreementId, _t.toAsset);
+            }
+
+            markedTokens[agreementId][_t.toAsset] = true;
+        }
+
+        agreementClosed[agreementId] = true;
+    }
+
+    function _getInitBalance(uint256 agreementId) internal view returns (uint256) {
+        return (IMB.getAgreement(agreementId)).__committedCapital;
     }
 
     function _sell(uint256 agreementId, address asset) internal {
@@ -219,70 +221,58 @@ contract Trade is MandateBook {
 
         require(!markedTokens[agreementId][asset], "Token has been swap yet");
 
-        if (address(0) == asset) {
-            amountIn = countedBalance[agreementId][address(0)];
-            amountOut = getOutAmount(agreementId, asset);
+        amountIn = countedBalance[agreementId][asset];
+        amountOut = getOutAmount(agreementId, asset);
 
-            swapETHForToken(
-                agreementId,
-                getBaseAsset(agreementId), // tokenOut,
-                amountOut, // amountOut
-                amountIn, // amountInMax
-                block.timestamp.add(timeFrame) //deadline
-            );
-        } else {
-            amountIn = countedBalance[agreementId][asset];
-            amountOut = getOutAmount(agreementId, asset);
+        uint256[] memory amounts = _swapTokenToToken(
+            agreementId, //uint256 agreementId,
+            asset, //address tokenIn,
+            getBaseAsset(agreementId), //address tokenOut,
+            amountIn, //uint256 amountIn,
+            amountOut, //uint256 amountOutMin,
+            block.timestamp.add(timeFrame) //uint256 deadline
+        );
 
-            swapTokenToToken(
-                agreementId, //uint256 agreementId,
-                asset, //address tokenIn,
-                getBaseAsset(agreementId), //address tokenOut,
-                amountIn, //uint256 amountIn,
-                amountOut, //uint256 amountOutMin,
-                block.timestamp.add(timeFrame) //uint256 deadline
-            );
-        }
-
-        balances[agreementId].counted += amountOut;
+        balances[agreementId].counted += amounts[amounts.length - 1];
         markedTokens[agreementId][asset] = true;
     }
 
-    // @dev on agreement end, close all positions
-    function sellAll(uint256 agreementId) external {
-        require(!agreementClosed[agreementId], "Agreement was closed");
+    function _swapTokenToToken(
+        uint256 agreementId,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 deadline
+    )
+        internal
+        returns (uint256[] memory amounts)
+    {
+        require(factory.getPair(tokenIn, tokenOut) != address(0), "Pair not exist");
 
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
 
-        require(
-            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
-            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
-            "Agreement active or closed"
-        );
+        require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
 
-        Trade memory _t;
+        TransferHelper.safeApprove(tokenIn, address(router), amountIn);
 
-        if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = _getInitBalance(agreementId);
-            return;
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+
+        if (deadline == 0) {
+            deadline = block.timestamp + timeFrame;
         }
 
-        countPossibleTradesDirection(agreementId);
+        amounts = IUniswapV2Router01(router).swapExactTokensForTokens(amountIn, amountOut, path, address(this), deadline);
 
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
-            if (!markedTokens[agreementId][_t.toAsset]) {
-                _sell(agreementId, deadline);
-            }
-
-            markedTokens[agreementId][_t.toAsset] = true;
-        }
-
-        agreementClosed[agreementId] = true;
-    }
-
-    function _getInitBalance(uint256 agreementId) internal view returns (uint256) {
-        return (IMB.getAgreement(agreementId)).__committedCapital;
+        trades[agreementId].push(TradeLog({
+            fromAsset: tokenIn,
+            toAsset: tokenOut,
+            amountIn: amounts[0],
+            amountOut: amounts[amounts.length - 1],
+            timestamp: block.timestamp
+        }));
     }
 
     modifier canTrade(uint256 agreementId, address outAddress) {
