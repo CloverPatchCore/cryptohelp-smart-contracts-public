@@ -46,13 +46,16 @@ contract Trade is MandateBook {
 
     mapping (uint256 => uint256) public countedTrades; // agreement id -> counter ticker
 
-    // is was added to counted balance
-    mapping(uint => mapping(address => bool)) markedTokens; // agreement id -> mapping
-//    mapping(uint => address[]) markedTokensList; // agreement id -> mapping
+    // is was added to counted balance, token marked ad sold
+    mapping(uint => mapping(address => bool)) tokenSold; // agreement id -> mapping
+
+    // tokens list on the end of agreement
+    mapping(uint => address[]) tokensToSell; // agreement id -> mapping
 
     // by agreement id we store the balances of Assets (on the end of the agreement)
     mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
+    // params uniV2Factory, uniV2Router
     constructor(address factoryV2, address routerContract) public {
         factory = IUniswapV2Factory(factoryV2);
         router = routerContract;
@@ -194,7 +197,7 @@ contract Trade is MandateBook {
 
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
-            if (!markedTokens[agreementId][_t.toAsset]) {
+            if (!tokenSold[agreementId][_t.toAsset]) {
                 _sell(agreementId, _t.toAsset);
             }
         }
@@ -225,7 +228,7 @@ contract Trade is MandateBook {
         uint amountIn;
         uint amountOut;
 
-        require(!markedTokens[agreementId][asset], "Token has been swap yet");
+        require(!tokenSold[agreementId][asset], "Token has been swap yet");
 
         amountIn = countedBalance[agreementId][asset];
         amountOut = getOutAmount(agreementId, asset);
@@ -240,7 +243,7 @@ contract Trade is MandateBook {
         );
 
         balances[agreementId].counted += amounts[amounts.length - 1];
-        markedTokens[agreementId][asset] = true;
+        tokenSold[agreementId][asset] = true;
     }
 
     function _swapTokenToToken(
@@ -281,17 +284,12 @@ contract Trade is MandateBook {
         }));
     }
 
+    event TestCanTrade(address agreementManager, string data);
+
     modifier canTrade(uint256 agreementId, address outAddress) {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
 
-        require(_a.manager == address(0), "Deal not exist");
-        require(_a.manager == msg.sender, "Not manager");
-
-        if (_a.status == AMandate.AgreementLifeCycle.EXPIRED) {
-            require(address(0) != outAddress, "You cannot swap to ethereum now");
-            require(getBaseAsset(agreementId) == outAddress, "Address should be only in base asset");
-            _;
-        }
+        emit TestCanTrade(_a.manager, "Test manager");
 
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
         _;
