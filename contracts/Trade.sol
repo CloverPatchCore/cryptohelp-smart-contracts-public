@@ -284,7 +284,7 @@ contract Trade is MandateBook {
     modifier canTrade(uint256 agreementId, address outAddress) {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
 
-        require(_a.manager == address(0), "Deal not exist");
+        require(_a.manager != address(0), "Deal not exist");
         require(_a.manager == msg.sender, "Not manager");
 
         if (_a.status == AMandate.AgreementLifeCycle.EXPIRED) {
