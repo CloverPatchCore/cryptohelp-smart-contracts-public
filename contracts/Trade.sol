@@ -42,18 +42,17 @@ contract Trade is MandateBook {
 
     uint256 timeFrame = 15 * 60 * 1 seconds;
 
+    uint256 internal exchangeFee = 3; // 0.3 % for uniswap
+
     mapping (uint256 => uint256) public countedTrades; // agreement id -> counter ticker
 
-    // is was added to counted balance, token marked ad sold
-    mapping(uint => mapping(address => bool)) tokenSold; // agreement id -> mapping
-
-    // tokens list on the end of agreement
-    mapping(uint => address[]) tokensToSell; // agreement id -> mapping
+    // is was added to counted balance
+    mapping(uint => mapping(address => bool)) markedTokens; // agreement id -> mapping
+//    mapping(uint => address[]) markedTokensList; // agreement id -> mapping
 
     // by agreement id we store the balances of Assets (on the end of the agreement)
     mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
-    // params uniV2Factory, uniV2Router
     constructor(address factoryV2, address routerContract) public {
         factory = IUniswapV2Factory(factoryV2);
         router = routerContract;
@@ -131,14 +130,12 @@ contract Trade is MandateBook {
         );
     }
 
+    // TODO: should be called once only after active period end
     // @dev sell asset with optimal price by agreement id
-    // @dev should be called before "sell", "sellAll"
     function countPossibleTradesDirection(uint256 agreementId)
         public
         onlyAfterActivePeriod(agreementId)
     {
-        require(countedTrades[agreementId] == 0, "Trades calculated");
-
         TradeLog memory _t;
         uint l = countTrades(agreementId);
         for (uint i = countedTrades[agreementId]; i < l; i++) {
@@ -165,39 +162,15 @@ contract Trade is MandateBook {
         );
     }
 
+    // TODO: bug of define close agreement
     // @dev sell one asset with optimal price by agreement id // should work properly
     function sell(uint256 agreementId, address asset) public onlyAfterActivePeriod(agreementId) {
-        require(!agreementClosed[agreementId], "Agreement was closed");
-        require(countedTrades[agreementId] == countTrades(agreementId), "Trades not calculated");
-
-        if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = _getInitBalance(agreementId);
-            agreementClosed[agreementId] = true;
-            return;
-        }
-
-        uint counterToClose;
-
-        TradeLog memory _t;
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
-            if (!tokenSold[agreementId][asset]) {
-                _sell(agreementId, asset);
-            }
-            if (tokenSold[agreementId][asset] == true) {
-                counterToClose++;
-            }
-        }
-
-        if (counterToClose == countTrades(agreementId)) {
-            agreementClosed[agreementId] = true;
-        }
+        _sell(agreementId, asset);
     }
 
     // @dev on agreement end, close all positions
     function sellAll(uint256 agreementId) external onlyAfterActivePeriod(agreementId) {
         require(!agreementClosed[agreementId], "Agreement was closed");
-        require(countedTrades[agreementId] == countTrades(agreementId), "Trades not calculated");
 
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
 
@@ -211,13 +184,17 @@ contract Trade is MandateBook {
 
         if (countTrades(agreementId) == 0) {
             balances[agreementId].counted = _getInitBalance(agreementId);
-            agreementClosed[agreementId] = true;
             return;
+        }
+
+        // TODO: bug if count and make one sell
+        if (countedTrades[agreementId] == 0) {
+            countPossibleTradesDirection(agreementId);
         }
 
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
-            if (!tokenSold[agreementId][_t.toAsset]) {
+            if (!markedTokens[agreementId][_t.toAsset]) {
                 _sell(agreementId, _t.toAsset);
             }
         }
@@ -248,7 +225,7 @@ contract Trade is MandateBook {
         uint amountIn;
         uint amountOut;
 
-        require(!tokenSold[agreementId][asset], "Token has been swap yet");
+        require(!markedTokens[agreementId][asset], "Token has been swap yet");
 
         amountIn = countedBalance[agreementId][asset];
         amountOut = getOutAmount(agreementId, asset);
@@ -263,7 +240,7 @@ contract Trade is MandateBook {
         );
 
         balances[agreementId].counted += amounts[amounts.length - 1];
-        tokenSold[agreementId][asset] = true;
+        markedTokens[agreementId][asset] = true;
     }
 
     function _swapTokenToToken(
@@ -306,6 +283,15 @@ contract Trade is MandateBook {
 
     modifier canTrade(uint256 agreementId, address outAddress) {
         AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
+
+        require(_a.manager != address(0), "Deal not exist");
+        require(_a.manager == msg.sender, "Not manager");
+
+        if (_a.status == AMandate.AgreementLifeCycle.EXPIRED) {
+            require(address(0) != outAddress, "You cannot swap to ethereum now");
+            require(getBaseAsset(agreementId) == outAddress, "Address should be only in base asset");
+            _;
+        }
 
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
         _;
