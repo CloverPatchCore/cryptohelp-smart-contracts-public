@@ -217,12 +217,14 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should not be possible to close agreement before deadline', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000); // status agreement still ACTIVE
 
-      await expectRevert(trade.sellAll(agreementId), "Agreement active or closed");
+      await expectRevert(trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 }), "Agreement still active");
+      await expectRevert(trade.sellAll(agreementId, { from: MANAGER1 }), "Agreement still active");
     })
 
     it('Should not be possible to close agreement twice', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
       await trade.sellAll(agreementId, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
@@ -233,6 +235,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should not be possible to close agreement any other person, then manager', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
       await trade.sellAll(agreementId, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
@@ -244,6 +247,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should be possible to close agreement, if manager has no trades', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
       await trade.sellAll(agreementId, { from: MANAGER1 });
 
       assert.equal(
@@ -256,6 +260,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should be possible to close agreement', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
       await trade.sellAll(agreementId, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
@@ -292,37 +297,41 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), {from: INVESTOR1});
     })
 
-    it('Should not be possible to close agreement before deadline', async () => {
+    it.only('Should not be possible to close agreement before deadline', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000); // status agreement still ACTIVE
 
-      await expectRevert(trade.sell(agreementId, { from: MANAGER1 }), "Agreement active or closed");
+      await expectRevert(trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 }), "Agreement still active");
+      await expectRevert(trade.sell(agreementId, DAI.address, { from: MANAGER1 }), "Agreement still active");
     })
 
     it('Should not be possible to close agreement twice', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
-      await trade.sellAll(agreementId, { from: MANAGER1 });
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
+      await trade.sell(agreementId, DAI.address, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
 
-      await expectRevert(trade.sellAll(agreementId, { from: MANAGER1 }), "Agreement was closed");
+      await expectRevert(trade.sell(agreementId, DAI.address, { from: MANAGER1 }), "Agreement was closed");
     })
 
     it('Should not be possible to close agreement any other person, then manager', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
-      await trade.sellAll(agreementId, { from: MANAGER1 });
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
+      await trade.sell(agreementId, DAI.address, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
 
-      await expectRevert(trade.sellAll(agreementId, { from: MANAGER2 }), "Only appointed Fund Manager");
-      await expectRevert(trade.sellAll(agreementId, { from: TOKENHOLDER1 }), "Only appointed Fund Manager");
+      await expectRevert(trade.sell(agreementId, DAI.address, { from: MANAGER2 }), "Only appointed Fund Manager");
+      await expectRevert(trade.sell(agreementId, DAI.address, { from: TOKENHOLDER1 }), "Only appointed Fund Manager");
     })
 
     it('Should be possible to close agreement, if manager has no trades', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
-      await trade.sell(agreementId, { from: MANAGER1 });
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
+      await trade.sell(agreementId, DAI.address, { from: MANAGER1 });
 
       assert.equal(
         String((await trade.balances(agreementId)).init),
@@ -334,7 +343,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     it('Should be possible to close agreement', async () => {
       await timeTravelTo(Number(OPENPERIOD1.toString()) + 1000);
 
-      await trade.sell(agreementId, { from: MANAGER1 });
+      await trade.countPossibleTradesDirection(agreementId, { from: MANAGER1 });
+      await trade.sell(agreementId, DAI.address, { from: MANAGER1 });
 
       assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
     })
