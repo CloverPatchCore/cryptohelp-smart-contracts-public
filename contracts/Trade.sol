@@ -47,9 +47,6 @@ contract Trade is MandateBook {
     // is was added to counted balance, token marked ad sold
     mapping(uint => mapping(address => bool)) tokenSold; // agreement id -> mapping
 
-    // tokens list on the end of agreement
-    mapping(uint => address[]) tokensToSell; // agreement id -> mapping
-
     // by agreement id we store the balances of Assets (on the end of the agreement)
     mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
@@ -199,21 +196,13 @@ contract Trade is MandateBook {
         require(!agreementClosed[agreementId], "Agreement was closed");
         require(countedTrades[agreementId] == countTrades(agreementId), "Trades not calculated");
 
-        AMandate.Agreement memory _a = IMB.getAgreement(agreementId);
-
-        require(
-            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
-            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
-            "Agreement active or closed"
-        );
-
-        TradeLog memory _t;
-
         if (countTrades(agreementId) == 0) {
             balances[agreementId].counted = _getInitBalance(agreementId);
             agreementClosed[agreementId] = true;
             return;
         }
+
+        TradeLog memory _t;
 
         for (uint i = 0; i < countTrades(agreementId); i++) {
             _t = trades[agreementId][i];
@@ -254,12 +243,12 @@ contract Trade is MandateBook {
         amountOut = getOutAmount(agreementId, asset);
 
         uint256[] memory amounts = _swapTokenToToken(
-            agreementId, //uint256 agreementId,
-            asset, //address tokenIn,
-            getBaseAsset(agreementId), //address tokenOut,
-            amountIn, //uint256 amountIn,
-            amountOut, //uint256 amountOutMin,
-            block.timestamp.add(timeFrame) //uint256 deadline
+            agreementId,
+            asset,
+            getBaseAsset(agreementId),
+            amountIn,
+            amountOut,
+            block.timestamp.add(timeFrame)
         );
 
         balances[agreementId].counted += amounts[amounts.length - 1];
