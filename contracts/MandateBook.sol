@@ -362,11 +362,12 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return transferred;
 
     }
-    function depositCapital(uint256 mandateID, uint256 amount) external /* payable */ override /* access modifier */  returns (uint256 ) {
+    function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external /* payable */ override /* access modifier */  returns (uint256 ) {
         require(mandateID < _mandates.length);
         Mandate storage m = _mandates[mandateID];
         require(address(0) != _agreements[m.agreement].baseCoin);
 
+        require(_agreements[m.agreement].__freeCollatAmount >= amount.mul(minCollatRateRequirement).div(100), "Can't satisfy collateral requirement");
         //if(msg.value > 0) processEthers();
 
         uint256 transferred = _transferDepositCapital(mandateID, amount);
