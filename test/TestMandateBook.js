@@ -165,10 +165,10 @@ contract('MandateBook', (accounts) => {
       //let's have IVNESTOR1 and INVEESTOR2 commit to Agreement 
       await bPound.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
       //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
-      await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), {from: INVESTOR1});
+      await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), toWei(0), {from: INVESTOR1});
       //now let's introduce 1 more investor
       await bPound.approve(mandateBook.address, toWei(10_000), {from: INVESTOR2});
-      await mandateBook.commitToAgreement(toBN(0), toWei(5_000), {from: INVESTOR2});
+      await mandateBook.commitToAgreement(toBN(0), toWei(5_000), toWei(0), {from: INVESTOR2});
       (await mandateBook.getAgreementCommittedCapital(toBN(0))).should.be.bignumber.eq(toWei(35_000));
       //await sleep((OPENPERIOD1 + 1) * 1000);
       await timeTravelTo(OPENPERIOD1);

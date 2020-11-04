@@ -352,7 +352,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         m.__committedCapital += transferred;
         Agreement storage aa = _agreements[m.agreement];
-        //TODO collateralize here
+        
         aa.__committedCapital += transferred;
         uint256 collat = transferred * aa.maxCollateralRateIfAvailable / 100;
         m.__collatAmount += collat;
@@ -402,10 +402,13 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         );
     }
 
-    function commitToAgreement(uint256 agreementID, uint256 amount/* , uint16 minCollatRequirement */) external /* payable */ returns (uint256 mandateID) {
+    function commitToAgreement(uint256 agreementID, uint256 amount, uint16 minCollatRateRequirement) external /* payable */ returns (uint256 mandateID) {
         //validate
-        //TODO require sufficient collateralization
-        //execute
+        require(_agreements.length > agreementID, "Agreements srray overflow");
+        Agreement storage aa = _agreements[agreementID];
+        //require sufficient collateralization
+        require(aa.__freeCollatAmount >= amount.mul(minCollatRateRequirement).div(100), "Can't satisfy collateral requirement");
+        
         //create a mandate
         _mandates.push(Mandate({
             status: MandateLifeCycle.COMMITTED,
