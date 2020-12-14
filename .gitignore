@@ -122,4 +122,8 @@ build/
 package-lock.json
 .vscode/
 
+<<<<<<< HEAD
 test/UniswapTest.js
+=======
+test2/UniswapTest.js
+>>>>>>> main

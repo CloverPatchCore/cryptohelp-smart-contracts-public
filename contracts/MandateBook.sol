@@ -455,14 +455,22 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         Agreement storage aa = _agreements[id];
         require(AgreementLifeCycle.PUBLISHED == aa.status, 'Can only activate agreements from AgreementLifeCycle.PUBLISHED status');
 
-
+        // @TODO: do not activate till open period is over
 
         aa.status = AgreementLifeCycle.ACTIVE;
     }
 
     function setExpiredAgreement(uint256 agreementID) public {
         Agreement storage aa = _agreements[agreementID];
-        require(aa.status <= AgreementLifeCycle.ACTIVE && now > (aa.publishTimestamp + aa.openPeriod + aa.duration));
+
+        require(aa.status <= AgreementLifeCycle.ACTIVE, "Agreement is already expired");
+
+        require(
+            now > (aa.publishTimestamp + aa.openPeriod + aa.duration),
+            "Agreement is not over yet"
+        );
+
+        require(_trd.agreementClosed(agreementID) == false, "Agreement trades are not closed");
 
         aa.status = AgreementLifeCycle.EXPIRED;
     }
@@ -473,7 +481,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
 
         //find the share of the mandate in the pool and multiply by the finalBalance
-        (, uint256 finalAgreementTradeBalance) = _trd.balances(m.agreement);
+        uint256 finalAgreementTradeBalance = _trd.balances(m.agreement);
         // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = m.__committedCapital * finalAgreementTradeBalance / aa.__committedCapital;
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)

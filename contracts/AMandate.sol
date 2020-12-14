@@ -24,10 +24,11 @@ abstract contract AMandate {
         uint256 __committedCapital; // absolute amount of capital committed to this Agreement (usually made through Mandates)
         uint32 duration; // seconds of duration of an ACTIVE phase of the Agreemenet
         uint32 openPeriod; // seconds of duration of a PUBLISHED period
-        
+        // bool waitForOpenPeriodToActivate; // @TODO: let trade manager to decide if it possible to activate trade
+
         uint256 publishTimestamp; // timestamp when the Agreement was marked as PUBLISHED
-        uint8 stat_actualReturnRate; // used to hold the actual results of trading on the Agreement 
-        uint8 stat_remainingCollateral; // used to hold the actual results of trading on the Agreement 
+        uint8 stat_actualReturnRate; // used to hold the actual results of trading on the Agreement
+        uint8 stat_remainingCollateral; // used to hold the actual results of trading on the Agreement
         uint8 stat_actualDuration; // used to hold the actual results of trading on the Agreement
     }
 
