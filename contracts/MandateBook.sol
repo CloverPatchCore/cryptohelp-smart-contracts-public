@@ -255,6 +255,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(aa.status <= AgreementLifeCycle.PUBLISHED, "Too late to change anything at AgreementLifeCycle.PUBLISHED");
 
         //execute
+        // @TODO disallow if collateral already deposited
         aa.baseCoin = baseCoin;
         aa.targetReturnRate = targetReturnRate;
         aa.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
@@ -517,8 +518,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     event WaitForMoreCollateral(uint256 agreementID, uint256 outstanding);
 
     event CreateAgreement(
-        uint256 agreementID,
-        address manager,
+        uint256 indexed agreementID,
+        address indexed manager,
         address baseCoin,
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
@@ -530,7 +531,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 publishTimestamp);
     event PopulateAgreement(/* TODO parameters */);
     event PublishAgreement(
-        uint256 agreementID,
+        uint256 indexed agreementID,
         address manager,
         address baseCoin,
         uint8 targetReturnRate,
