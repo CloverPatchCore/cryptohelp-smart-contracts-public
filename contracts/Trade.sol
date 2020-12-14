@@ -250,7 +250,7 @@ contract Trade is MandateBook, ITrade {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
 
         require(
-            block.timestamp > uint(_a.duration).add(_a.publishTimestamp) &&
+            block.timestamp > uint(_a.activePeriod).add(_a.publishTimestamp) &&
             _a.status != AMandate.AgreementLifeCycle.EXPIRED,
             "Agreement active or closed"
         );
@@ -359,7 +359,7 @@ contract Trade is MandateBook, ITrade {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
 
         // TODO: check time math logic
-        require(block.timestamp > _a.publishTimestamp.add(_a.openPeriod).add(_a.duration), "Agreement still active");
+        require(block.timestamp > _a.publishTimestamp.add(_a.openPeriod).add(_a.activePeriod), "Agreement still active");
         _;
     }
 }

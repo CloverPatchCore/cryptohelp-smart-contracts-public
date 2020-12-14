@@ -192,8 +192,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
-        uint32 duration,
-        uint32 openPeriod
+        uint32 openPeriod,
+        uint32 activePeriod
     ) external returns (uint256) {
 
         //validations
@@ -208,8 +208,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             __collatAmount: 0, 
             __freeCollatAmount: 0,
             __committedCapital: 0, /* initially there's no capital committed  */
-            duration: duration,
             openPeriod: openPeriod,
+            activePeriod: activePeriod,
             publishTimestamp: 0,
 
             stat_actualReturnRate: 0,
@@ -230,8 +230,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             aa.__collatAmount,
             aa.__freeCollatAmount,
             aa.__committedCapital,
-            aa.duration,
             aa.openPeriod,
+            aa.activePeriod,
             aa.publishTimestamp
         );
 
@@ -246,7 +246,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
         uint256 collatAmount,
-        uint32 duration,
+        uint32 activePeriod,
         uint32 openPeriod
     ) external onlyAgreementManager(id) {
         Agreement storage aa = _agreements[id];
@@ -260,7 +260,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         aa.targetReturnRate = targetReturnRate;
         aa.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
         //collatAmount processed separately
-        aa.duration = duration;
+        aa.activePeriod = activePeriod;
         aa.openPeriod = openPeriod;
 
         if(collatAmount > aa.__collatAmount) {
@@ -363,12 +363,12 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return transferred;
 
     }
-    function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external /* payable */ override /* access modifier */  returns (uint256 ) {
+    function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external override returns (uint256 ) {
         require(mandateID < _mandates.length);
         Mandate storage m = _mandates[mandateID];
         require(address(0) != _agreements[m.agreement].baseCoin);
 
-        require(_agreements[m.agreement].__freeCollatAmount >= amount.mul(minCollatRateRequirement).div(100), "Can't satisfy collateral requirement");
+        require(_agreements[m.agreement].__freeCollatAmount >= amount * minCollatRateRequirement/100, "Can't satisfy collateral requirement");
         require(_agreements[m.agreement].status == AgreementLifeCycle.PUBLISHED);
 
         //if(msg.value > 0) processEthers();
@@ -406,21 +406,20 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             aa.__collatAmount,
             aa.__freeCollatAmount,
             aa.__committedCapital,
-            aa.duration,
             aa.openPeriod,
+            aa.activePeriod,
             aa.publishTimestamp
         );
     }
 
-    function commitToAgreement(uint256 agreementID, uint256 amount/* , uint16 minCollatRequirement */) external /* payable */ returns (uint256 mandateID) {
-        Agreement storage aa = _agreements[agreementID];
-        require(aa.status == AgreementLifeCycle.PUBLISHED);
+    function commitToAgreement(uint256 agreementID, uint256 amount , uint16 minCollatRateRequirement) external /* payable */ returns (uint256 mandateID) {
 
         //validate
         require(_agreements.length > agreementID, "Agreements srray overflow");
         Agreement storage aa = _agreements[agreementID];
+        require(aa.status == AgreementLifeCycle.PUBLISHED);
         //require sufficient collateralization
-        require(aa.__freeCollatAmount >= amount.mul(minCollatRateRequirement).div(100), "Can't satisfy collateral requirement");
+        require(aa.__freeCollatAmount >= amount * minCollatRateRequirement / 100, "Can't satisfy collateral requirement");
         
         //create a mandate
         _mandates.push(Mandate({
@@ -466,7 +465,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(aa.status <= AgreementLifeCycle.ACTIVE, "Agreement is already expired");
 
         require(
-            now > (aa.publishTimestamp + aa.openPeriod + aa.duration),
+            now > (aa.publishTimestamp + aa.openPeriod + aa.activePeriod),
             "Agreement is not over yet"
         );
 
@@ -521,7 +520,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     } 
 
     //TODO to review
-    event CreateMandate(uint256 id, address indexed investor);
+    event CreateMandate(uint256 indexed id, address indexed investor);
     //TODO to review
     // event PopulateMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);
     //TODO to review
@@ -533,10 +532,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     //TODO to review
     event CloseMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);*/
 
-    event CancelMandate(uint256 mandateID);
-    event DepositCapital(uint256 mandateID, uint256 amount);
-    event DepositCollateral(uint256 agreementID, uint256 amount);
-    event WaitForMoreCollateral(uint256 agreementID, uint256 outstanding);
+    event CancelMandate(uint256 indexed mandateID);
+    event DepositCapital(uint256 indexed mandateID, uint256 amount);
+    event DepositCollateral(uint256 indexed agreementID, uint256 amount);
+    event WaitForMoreCollateral(uint256 indexed agreementID, uint256 outstanding);
 
     event CreateAgreement(
         uint256 indexed agreementID,
@@ -547,21 +546,21 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 __collatAmount,
         uint256 __freeCollatAmount,
         uint256 __committedCapital,
-        uint32 duration,
         uint32 openPeriod,
+        uint32 activePeriod,
         uint256 publishTimestamp);
     event PopulateAgreement(/* TODO parameters */);
     event PublishAgreement(
         uint256 indexed agreementID,
-        address manager,
+        address indexed manager,
         address baseCoin,
         uint8 targetReturnRate,
         uint8 maxCollateralRateIfAvailable,
         uint256 __collatAmount,
         uint256 __freeCollatAmount,
         uint256 __committedCapital,
-        uint32 duration,
         uint32 openPeriod,
+        uint32 activePeriod,
         uint256 publishTimestamp);
     event CommitToAgreement(/* TODO parameters */);
     event __service__settleMandate__values(

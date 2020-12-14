@@ -186,8 +186,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(100_000), /* collatAmount */
-        DURATION1,  /* duration   */
         OPENPERIOD1, /* open period */
+        DURATION1,  /* duration   */
         { from: MANAGER1 }
     );
 
