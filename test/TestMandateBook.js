@@ -1,4 +1,4 @@
-const MandateBook = artifacts.require('./MandateBook');
+const Trade = artifacts.require('./Trade'); // MandateBook
 const ERC20 = artifacts.require('./MockERC20');
 const _require = require("app-root-path").require;
 const BlockchainCaller = _require("/utils/blockchain_caller");
@@ -58,7 +58,7 @@ contract('MandateBook', (accounts) => {
   let bPound, bYen, bHryvna;
 
   before('setup', async () => {
-    mandateBook = await MandateBook.deployed();
+    mandateBook = await Trade.deployed(); // MandateBook
 
     // deploy a couple of funny stablecoins to use as capital and collateral
     bPound = await ERC20.new('BPound', 'bLBP', toWei(1_000_000), {from: MINTER});

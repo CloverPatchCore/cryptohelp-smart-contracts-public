@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "compile": "truffle compile",
+    "compile": "truffle compile --all",
     "lint": "solhint contracts/*.sol",
     "test": "truffle test",
     "watch": "truffle watch"
@@ -21,15 +21,24 @@
   "homepage": "https://github.com/crypto-help/cryptohelp-smart-contracts#readme",
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
+    "@truffle/hdwallet-provider": "^1.1.1",
+    "@uniswap/sdk": "^3.0.3",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "app-root-path": "^3.0.0",
+    "bn.js": "^5.1.3",
+    "dotenv": "^8.2.0",
+    "ethereum-waffle": "^3.1.2",
+    "ethers": "^5.0.18",
     "ganache-time-traveler": "^1.0.15",
     "solhint": "^3.2.2",
-    "truffle": "^5.1.49"
+    "truffle": "^5.1.49",
+    "web3": "^1.3.0"
   },
   "devDependencies": {
     "@openzeppelin/test-helpers": "^0.5.7",
-    "ethlint": "^1.2.5"
+    "chai": "^4.2.0",
+    "ethlint": "^1.2.5",
+    "web3-utils": "^1.3.0"
   }
 }

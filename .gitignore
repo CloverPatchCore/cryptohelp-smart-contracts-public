@@ -121,3 +121,5 @@ build/
 
 package-lock.json
 .vscode/
+
+test/UniswapTest.js
