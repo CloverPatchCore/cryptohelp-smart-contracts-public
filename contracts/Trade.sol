@@ -215,17 +215,6 @@ contract Trade is MandateBook, ITrade {
     function sellAll(uint256 agreementId) external onlyAfterActivePeriod(agreementId) {
         require(!_agreementClosed[agreementId], "Agreement was closed");
 
-<<<<<<< HEAD
-        if (countTrades(agreementId) == 0) {
-            balances[agreementId].counted = _getInitBalance(agreementId);
-            agreementClosed[agreementId] = true;
-            return;
-        }
-
-        TradeLog memory _t;
-
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-=======
         uint256 openTradesCount = countTrades(agreementId);
 
         require(countedTrades[agreementId] == openTradesCount, "Trades not calculated");
@@ -242,7 +231,6 @@ contract Trade is MandateBook, ITrade {
         }
 
         for (uint i = 0; i < openTradesCount; i++) {
->>>>>>> main
             _t = trades[agreementId][i];
             if (!tokenSold[agreementId][_t.toAsset]) {
                 _sell(agreementId, _t.toAsset);
