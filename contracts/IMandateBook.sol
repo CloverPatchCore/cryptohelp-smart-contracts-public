@@ -11,7 +11,6 @@ interface IMandateBook {
 
 /*     function acceptMandate(uint id) external payable; // accepts collateral from fund manager
 
-    function cancelMandate(uint id) external;
 
     function startMandate(uint id) external payable; // accepts collateral from fund manager
 
@@ -23,6 +22,8 @@ interface IMandateBook {
 
     function submitMandate(uint id) external;
  */
+    function cancelMandate(uint256 mandateID) external;
+    
     function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external /* payable */ returns (uint256 finalMandateCapitalBalance);
     function withdrawCapital(uint256 mandateID, uint256 amount) external /* payable */ returns (uint256 finalMandateCapitalBalance);
 

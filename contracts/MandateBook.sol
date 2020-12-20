@@ -162,14 +162,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     }
  */
-    //TODO to review
-/*     function cancelMandate(uint256 id) external override onlyAgreementManager(id) {
-        // validations
-        // actions
-
-        // event emissions
-        emit CancelMandate(id);
-    } */
 
     function _init() private {}
 
@@ -208,6 +200,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             __collatAmount: 0, 
             __freeCollatAmount: 0,
             __committedCapital: 0, /* initially there's no capital committed  */
+            __committedMandates: 0,
+            __settledMandates: 0,
             openPeriod: openPeriod,
             activePeriod: activePeriod,
             publishTimestamp: 0,
@@ -228,11 +222,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             aa.targetReturnRate,
             aa.maxCollateralRateIfAvailable,
             aa.__collatAmount,
-            aa.__freeCollatAmount,
-            aa.__committedCapital,
             aa.openPeriod,
-            aa.activePeriod,
-            aa.publishTimestamp
+            aa.activePeriod
         );
 
         //return
@@ -256,13 +247,16 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //execute
         // @TODO disallow if collateral already deposited
+        if(aa.__collatAmount > 0 && baseCoin != aa.baseCoin) {
+            revert("Can't change the basecoin when collateral deposited");
+        }
         aa.baseCoin = baseCoin;
         aa.targetReturnRate = targetReturnRate;
         aa.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
         //collatAmount processed separately
         aa.activePeriod = activePeriod;
         aa.openPeriod = openPeriod;
-
+        uint256 newCollateral;
         if(collatAmount > aa.__collatAmount) {
             _transferDepositCollateral(id, collatAmount - aa.__collatAmount);
         }
@@ -270,7 +264,16 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             _transferWithdrawCollateral(id, aa.__collatAmount - collatAmount);
         }
         //emit event
-        emit PopulateAgreement();
+        emit PopulateAgreement(
+            id,
+            aa.manager,
+            aa.baseCoin,
+            aa.targetReturnRate,
+            aa.maxCollateralRateIfAvailable,
+            aa.__collatAmount,
+            aa.openPeriod,
+            aa.activePeriod
+        );
 
         //return
     }
@@ -282,7 +285,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //if(msg.value > 0) processEthers();
         uint256 transferred = _transferDepositCollateral(agreementID, amount);
 
-        emit DepositCollateral(agreementID, transferred);
+        emit DepositCollateral(agreementID, aa.manager, transferred);
 
         return transferred;
     }
@@ -297,10 +300,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return transferred;
     }
 
-    function _transferWithdrawCollateral(uint256 agreementID, uint256 amount) internal {
+    function _transferWithdrawCollateral(uint256 agreementID, uint256 amount) internal returns(uint256 transferred) {
         Agreement storage a = _agreements[agreementID];
 
-        uint256 transferred = __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
+        transferred = __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
 
         //we can't actually withdraw more collateral that is available
         require(a.__freeCollatAmount > transferred);
@@ -308,7 +311,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         a.__collatAmount -= transferred;
     }
 
-    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ override returns (uint256 finalAgreementCollateralBalance) {}
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ override returns (uint256 finalAgreementCollateralBalance) {
+        require(agreementID < _agreements.length);
+
+        Agreement storage a = _agreements[agreementID];
+        _transferWithdrawCollateral(agreementID, amount);
+
+        emit WithdrawCollateral(agreementID, a.manager, amount);
+    }
 
     function processEthers() pure internal {
         revert();//TODO critical to implement proce
@@ -343,47 +353,83 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     }
 
-    function _transferDepositCapital(uint256 mandateID, uint256 amount) internal returns(uint256 commitedCapitalAfter) {
+    function _transferDepositCapital(Agreement storage aa, Mandate storage m, uint256 amount, uint256 minRequiredCollatRate) internal returns(uint256 transferred) {
 
-        Mandate storage m = _mandates[mandateID];
         /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
         /* UPD: still not convinced it's worth keeping the global allowances updated require(IERC20(_agreements[id].baseCoin).allowance(msg.sender) >= amount + _investors[msg.sender].globalAllowances[_agreements[id].baseCoin]); */
 
-        uint256 transferred = __safeTransferFrom(_agreements[m.agreement].baseCoin, msg.sender, address(this), amount);
+        transferred = __safeTransferFrom(aa.baseCoin, msg.sender, address(this), amount);
 
-        m.__committedCapital += transferred;
-        Agreement storage aa = _agreements[m.agreement];
-        
+        m.__committedCapital += transferred;        
         aa.__committedCapital += transferred;
-        uint256 collat = transferred * aa.maxCollateralRateIfAvailable / 100;
+        uint256 maxCollat = transferred * aa.maxCollateralRateIfAvailable / 100;
+        uint256 minCollat = transferred * minRequiredCollatRate / 100;
+        require(aa.__freeCollatAmount >= minCollat, "Insufficient collateral");
+        uint256 collat = aa.__freeCollatAmount < maxCollat? aa.__freeCollatAmount : maxCollat;
+
         m.__collatAmount += collat;
-        require(aa.__freeCollatAmount >= collat, "Insufficient collateral");
         aa.__freeCollatAmount -= collat;
-        
-        return transferred;
+    }
+    function _transferWithdrawCapital(Agreement storage aa, Mandate storage m, uint256 amount) internal returns(uint256 transferred) {
+
+        /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
+        /* UPD: still not convinced it's worth keeping the global allowances updated require(IERC20(_agreements[id].baseCoin).allowance(msg.sender) >= amount + _investors[msg.sender].globalAllowances[_agreements[id].baseCoin]); */
+
+        transferred = __safeTransferFrom(aa.baseCoin, address(this), m.investor, amount);
+
+        uint256 collatToRelease = m.__collatAmount * transferred / m.__committedCapital;
+        m.__committedCapital -= transferred;        
+        aa.__committedCapital -= transferred;
+        m.__collatAmount -= collatToRelease;
+        aa.__freeCollatAmount += collatToRelease;
 
     }
-    function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external override returns (uint256 ) {
-        require(mandateID < _mandates.length);
+    function depositCapital(uint256 mandateID, uint256 amount, uint16 minCollatRateRequirement) external onlyExistMandate(mandateID) override returns (uint256 transferred) {
         Mandate storage m = _mandates[mandateID];
-        require(address(0) != _agreements[m.agreement].baseCoin);
+        Agreement storage aa = _agreements[m.agreement];
+        require(address(0) != aa.baseCoin);
+        require(aa.status == AgreementLifeCycle.PUBLISHED);
 
-        require(_agreements[m.agreement].__freeCollatAmount >= amount * minCollatRateRequirement/100, "Can't satisfy collateral requirement");
-        require(_agreements[m.agreement].status == AgreementLifeCycle.PUBLISHED);
+        transferred = _transferDepositCapital(aa, m, amount, minCollatRateRequirement);
 
-        //if(msg.value > 0) processEthers();
-
-        uint256 transferred = _transferDepositCapital(mandateID, amount);
-
-        emit DepositCapital(mandateID, transferred);
-        return transferred;
+        emit DepositCapital(m.agreement, aa.manager, mandateID, m.investor, transferred);
     }
 
 
-    function withdrawCapital(uint256 mandateID, uint256 amount) external override returns (uint256 finalMandateCapitalBalance) {
+    function withdrawCapital(uint256 mandateID, uint256 amount) external onlyExistMandate(mandateID) onlyMandateInvestor(mandateID) override returns (uint256 transferred) {
         // @TODO: implement
+        Mandate storage m = _mandates[mandateID];
+        Agreement storage aa = _agreements[m.agreement];
+        // withdraw capital
+        require(aa.status < AgreementLifeCycle.ACTIVE, "Can't withdraw from agreement at this stage");
+        require(amount <= m.__committedCapital, "Can't withdraw more than you have");
 
-        revert("Not implemented");
+        transferred = _transferWithdrawCapital(aa, m, amount);
+        emit WithdrawCapital(m.agreement, aa.manager, mandateID, m.investor, transferred);
+
+        if(0 == m.__committedCapital) {
+            _cancelEmptyMandate(aa, m);
+            emit CancelMandate(m.agreement, aa.manager, mandateID, m.investor);
+        }
+    }
+
+    // ses the mandate status, decreases the counter in agreement, emits event
+    function _cancelEmptyMandate(Agreement storage aa, Mandate storage m) internal {
+        aa.__committedMandates--;
+        m.status = MandateLifeCycle.CANCELED;
+    }
+
+    function cancelMandate(uint256 mandateID) external override onlyExistMandate(mandateID) onlyMandateOrAgreementOwner(mandateID) {
+        // @TODO validations
+
+        Mandate storage m = _mandates[mandateID];
+        Agreement storage aa = _agreements[m.agreement];
+        // actions
+        uint256 transferred = _transferWithdrawCapital(aa, m, m.__committedCapital);
+        emit WithdrawCapital(m.agreement, aa.manager, mandateID, m.investor, transferred);
+        _cancelEmptyMandate(aa, m);
+        // event emissions
+        emit CancelMandate(m.agreement, aa.manager, mandateID, m.investor);
     }
 
     function publishAgreement(uint256 id)  external onlyAgreementManager(id) {
@@ -404,23 +450,31 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             aa.targetReturnRate,
             aa.maxCollateralRateIfAvailable,
             aa.__collatAmount,
-            aa.__freeCollatAmount,
-            aa.__committedCapital,
             aa.openPeriod,
             aa.activePeriod,
             aa.publishTimestamp
         );
     }
 
-    function commitToAgreement(uint256 agreementID, uint256 amount , uint16 minCollatRateRequirement) external /* payable */ returns (uint256 mandateID) {
+    // @TODO
+    function cancelAgreement(uint256 agreementID) external onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) {
+        revert("to be implemented later");
+    }
+
+    function unpublishAgreement(uint256 agreementID) external onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) {
+        // @TODO implement
+        Agreement storage aa = _agreements[agreementID];
+        require(0 == aa.__committedMandates, "Agreement has committed mandates, use cancelAgreement");
+        aa.status = AgreementLifeCycle.POPULATED;
+        emit UnpublishAgreement(agreementID, aa.manager);
+    }
+
+    function commitToAgreement(uint256 agreementID, uint256 amount, uint16 minCollatRateRequirement) external onlyExistAgreement(agreementID) returns (uint256 transferred) {
 
         //validate
-        require(_agreements.length > agreementID, "Agreements srray overflow");
         Agreement storage aa = _agreements[agreementID];
         require(aa.status == AgreementLifeCycle.PUBLISHED);
-        //require sufficient collateralization
-        require(aa.__freeCollatAmount >= amount * minCollatRateRequirement / 100, "Can't satisfy collateral requirement");
-        
+
         //create a mandate
         _mandates.push(Mandate({
             status: MandateLifeCycle.COMMITTED,
@@ -429,12 +483,15 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             __committedCapital: 0,
             __collatAmount: 0
         }));
-        mandateID = _mandates.length - 1;
+        uint256 mandateID = _mandates.length - 1;
+        Mandate storage m = _mandates[mandateID];
 
-        uint256 transferred = _transferDepositCapital(mandateID, amount);
+        transferred = _transferDepositCapital(aa, m, amount, minCollatRateRequirement);
+        require(transferred > 0, "need to commit nonzero capital");
+        aa.__committedMandates++;
 
         //emit event
-        emit CommitToAgreement();
+        emit CommitToAgreement(agreementID, aa.manager, mandateID, msg.sender, amount, m.__collatAmount);
 
         //return
     }
@@ -457,6 +514,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // @TODO: do not activate till open period is over
 
         aa.status = AgreementLifeCycle.ACTIVE;
+
+        emit ActivateAgreement(id, aa.manager);
     }
 
     function setExpiredAgreement(uint256 agreementID) public {
@@ -472,12 +531,15 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(_trd.agreementClosed(agreementID) == false, "Agreement trades are not closed");
 
         aa.status = AgreementLifeCycle.EXPIRED;
+
+        emit SetExpiredAgreement(agreementID, aa.manager);
     }
 
     function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
         require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
+        require(MandateLifeCycle.SETTLED > m.status, "Mandate was already settled");
 
         //find the share of the mandate in the pool and multiply by the finalBalance
         uint256 finalAgreementTradeBalance = _trd.balances(m.agreement);
@@ -500,8 +562,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //send remaining collateral to Manageer
         //TODO in the future for sake of gas optimization. write the withdrawable collateral to the separate value to save on gas fees
         IERC20(aa.baseCoin).transfer(aa.manager, mandateCollatLeft);
+        m.status = MandateLifeCycle.SETTLED;
 
-        //TODO mark as settled if all
+        //mark as settled if all mandates done
+        aa.__settledMandates++;
+
+        if(aa.__committedMandates == aa.__settledMandates)  {
+            aa.status = AgreementLifeCycle.SETTLED;
+        }
 
         emit __service__settleMandate__values(
             mandateFinalTradeBalance,
@@ -518,6 +586,55 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     );
 
     } 
+    
+    //#############################
+    //#############################
+    //#############################
+    //#############################
+    //#############################
+
+    event WaitForMoreCollateral(uint256 indexed agreementID, uint256 outstanding);
+
+    event CreateAgreement(
+        uint256 indexed agreementID,
+        address indexed manager,
+        address indexed baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 __collatAmount,
+        uint32 openPeriod,
+        uint32 activePeriod);
+    event PopulateAgreement(
+        uint256 indexed agreementID,
+        address indexed manager,
+        address indexed baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 __collatAmount,
+        uint32 openPeriod,
+        uint32 activePeriod);
+    event DepositCollateral(uint256 indexed agreementID, address indexed manager, uint256 amount);
+    event WithdrawCollateral(uint256 indexed agreementID, address indexed manager, uint256 amount);
+    event PublishAgreement(
+        uint256 indexed agreementID,
+        address indexed manager,
+        address indexed baseCoin,
+        uint8 targetReturnRate,
+        uint8 maxCollateralRateIfAvailable,
+        uint256 __collatAmount,
+        uint32 openPeriod,
+        uint32 activePeriod,
+        uint256 publishTimestamp);
+    event UnpublishAgreement(uint256 indexed agreementID, address indexed manager);
+    event CommitToAgreement(
+        uint256 indexed agreementID, 
+        address manager, 
+        uint256 indexed mandateID, 
+        address indexed investor, 
+        uint256 amount, 
+        uint256 collateral);
+    event ActivateAgreement(uint256 indexed agreementID, address indexed manager);
+    event SetExpiredAgreement(uint256 indexed agreementID, address indexed manager);
 
     //TODO to review
     event CreateMandate(uint256 indexed id, address indexed investor);
@@ -532,37 +649,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     //TODO to review
     event CloseMandate(uint256 id, uint256 ethers, address indexed investor, address indexed manager, uint256 duration, uint16 takeProfit, uint16 stopLoss);*/
 
-    event CancelMandate(uint256 indexed mandateID);
-    event DepositCapital(uint256 indexed mandateID, uint256 amount);
-    event DepositCollateral(uint256 indexed agreementID, uint256 amount);
-    event WaitForMoreCollateral(uint256 indexed agreementID, uint256 outstanding);
+    event DepositCapital(uint256 indexed agreementID, address manager, uint256 indexed mandateID, address indexed investor, uint256 amount);
+    event WithdrawCapital(uint256 indexed agreementID, address manager, uint256 indexed mandateID, address indexed investor, uint256 amount);
 
-    event CreateAgreement(
-        uint256 indexed agreementID,
-        address indexed manager,
-        address baseCoin,
-        uint8 targetReturnRate,
-        uint8 maxCollateralRateIfAvailable,
-        uint256 __collatAmount,
-        uint256 __freeCollatAmount,
-        uint256 __committedCapital,
-        uint32 openPeriod,
-        uint32 activePeriod,
-        uint256 publishTimestamp);
-    event PopulateAgreement(/* TODO parameters */);
-    event PublishAgreement(
-        uint256 indexed agreementID,
-        address indexed manager,
-        address baseCoin,
-        uint8 targetReturnRate,
-        uint8 maxCollateralRateIfAvailable,
-        uint256 __collatAmount,
-        uint256 __freeCollatAmount,
-        uint256 __committedCapital,
-        uint32 openPeriod,
-        uint32 activePeriod,
-        uint256 publishTimestamp);
-    event CommitToAgreement(/* TODO parameters */);
+    event CancelMandate(uint256 indexed agreementID, address manager, uint256 indexed mandateID, address indexed investor);
     event __service__settleMandate__values(
         uint256 mandateFinalTradeBalance,
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)

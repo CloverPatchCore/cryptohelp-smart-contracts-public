@@ -97,9 +97,9 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
   let agreementId;
 
   beforeEach(async () => {
-    WETH = await MockERC20.new('WETH', 'WETH', toWei('1000000000'), { from: MINTER });
-    DAI = await MockERC20.new('DAI', 'DAI', toWei('1000000000'), { from: MINTER });
-    TKNX = await MockERC20.new('TokenX', 'TKNX', toWei('1000000000000'), { from: MINTER });
+    WETH = await MockERC20.new('WETH', 'WETH', toWei(1_000_000_000), { from: MINTER });
+    DAI = await MockERC20.new('DAI', 'DAI', toWei(1_000_000_000), { from: MINTER });
+    TKNX = await MockERC20.new('TokenX', 'TKNX', toWei(1_000_000_000_000), { from: MINTER });
 
     // creat pair WETHDAI
     WETH_DAI[0] = (WETH.address);
@@ -130,8 +130,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       MINTER,  // object
       WETH,
       DAI,
-      toWei('100000'),
-      toWei('100000'),
+      toWei(100_000),
+      toWei(100_000),
       MINTER
     );
 
@@ -149,8 +149,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         MINTER,
         WETH,
         TKNX,
-        toWei('100000'),
-        toWei('100000'),
+        toWei(100_000),
+        toWei(100_000),
         MINTER
     );
 
@@ -223,7 +223,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     //let's have IVNESTOR1 commit to Agreement
     await DAI.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
     //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
-    await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), {from: INVESTOR1});
+    await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), toBN(0), {from: INVESTOR1});
 
     await mandateBook.activateAgreement(agreementId, {
       from: MANAGER1
@@ -252,7 +252,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     //let's have IVNESTOR1 commit to Agreement
     await DAI.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
     //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
-    await mandateBook.commitToAgreement(agreementId, toWei(1_200_000), {from: INVESTOR1});
+    await mandateBook.commitToAgreement(agreementId, toWei(1_200_000), toBN(0), {from: INVESTOR1});
 
     await mandateBook.activateAgreement(agreementId, {
       from: MANAGER1
