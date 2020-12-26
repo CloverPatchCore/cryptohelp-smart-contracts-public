@@ -92,8 +92,8 @@ contract('MandateBook', (accounts) => {
         30, /* targetReturnRate */
         80, /* maxCollateralRateIfAvailable */
         toWei(100_000), /* collatAmount */
-        toBN(DURATION1),  /* duration   */
         toBN(OPENPERIOD1), /* open period */ 
+        toBN(DURATION1),  /* duration   */
         {from:MANAGER1});
       iA = 0;
       });
@@ -106,16 +106,16 @@ contract('MandateBook', (accounts) => {
     it('.. emitting the CreateAgreement event', async () => {
       expectEvent(txA, 'CreateAgreement', 
       {
-        agreementID: toBN(iA),
+       agreementID: toBN(iA),
         manager: toChecksumAddress(MANAGER1),
         baseCoin: bPound.address,
         targetReturnRate: toBN(30),
         maxCollateralRateIfAvailable: toBN(80),
-        __collatAmount: toWei(70_000),
-        __committedCapital: toBN(0),
-        duration: toBN(DURATION1),
+        __collatAmount: toWei(70_000),      
+      //  __committedCapital: toBN(0),        
         openPeriod: toBN(OPENPERIOD1),
-        publishTimestamp: toBN(0)
+        activePeriod: toBN(DURATION1)       
+       // publishTimestamp: toBN(0) 
       });
     });
     it('.. if the collateral allowance is not approved in the baseCoin ERC20, the Agreement should still be created ..');
@@ -142,23 +142,32 @@ contract('MandateBook', (accounts) => {
       txA = await mandateBook.publishAgreement(toBN(0), {from: MANAGER1});
 
     });
-/*     it('.. emitting PublishAgreement Event', async () => {
-      var theblock = await web3.eth.getBlock(txA.blockNumber.toString);
+    it('.. emitting PublishAgreement Event', async () => {
+     var theblock =await web3.eth.getBlock(txA.blockNumber/*.toString*/);
+     // await web3.eth.getBlockNumber();  
+     
       expectEvent(txA, 'PublishAgreement', 
       {
         agreementID: toBN(0),
         manager: toChecksumAddress(MANAGER1),
-        baseCoin: toChecksumAddress(base1),
+        // baseCoin: toChecksumAddress(base1),
+        baseCoin: bPound.address,
         targetReturnRate: toBN(30),
         maxCollateralRateIfAvailable: toBN(80),
-        __collatAmount: toBN(0),
-        __committedCapital: toBN(0),
-        duration: toBN(30 * 24 * 3600),
-        openPeriod: toBN(7 * 24 * 3600),
-        publishTimestamp: theblock.timestamp
+       __collatAmount: toWei(220_000),
+       //toBN(0),
+        // __committedCapital: toBN(0),        
+        /*openPeriod: toBN(7 * 24 * 3600),
+        activePeriod: toBN(30 * 24 * 3600),*/
+        openPeriod: toBN(OPENPERIOD1),
+        activePeriod: toBN(DURATION1),  
+        publishTimestamp: (theblock.timestamp).toString()
       });
+
     });
- */  });
+   
+
+   });
 
   describe('Agreement Acceptance Phase', async () =>{
     it('Investors should be able to opt-in to the Agreement by depositing Capital in Stablecoins', async () => {
