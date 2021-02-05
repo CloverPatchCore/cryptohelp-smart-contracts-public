@@ -197,6 +197,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     ) external returns (uint256) {
 
         //validations
+        require(targetReturnRate <= maxCollateralRateIfAvailable, "Max collateral is greater than target return rate");
 
         //actions
         _agreements.push(Agreement({
@@ -205,7 +206,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             baseCoin: baseCoin,
             targetReturnRate: targetReturnRate,
             maxCollateralRateIfAvailable: maxCollateralRateIfAvailable,
-            __collatAmount: 0, 
+            __collatAmount: 0,
             __freeCollatAmount: 0,
             __committedCapital: 0, /* initially there's no capital committed  */
             openPeriod: openPeriod,
@@ -353,13 +354,13 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         m.__committedCapital += transferred;
         Agreement storage aa = _agreements[m.agreement];
-        
+
         aa.__committedCapital += transferred;
         uint256 collat = transferred * aa.maxCollateralRateIfAvailable / 100;
         m.__collatAmount += collat;
         require(aa.__freeCollatAmount >= collat, "Insufficient collateral");
         aa.__freeCollatAmount -= collat;
-        
+
         return transferred;
 
     }
@@ -420,7 +421,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(aa.status == AgreementLifeCycle.PUBLISHED);
         //require sufficient collateralization
         require(aa.__freeCollatAmount >= amount * minCollatRateRequirement / 100, "Can't satisfy collateral requirement");
-        
+
         //create a mandate
         _mandates.push(Mandate({
             status: MandateLifeCycle.COMMITTED,
@@ -517,7 +518,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             mandateCollatLeft
     );
 
-    } 
+    }
 
     //TODO to review
     event CreateMandate(uint256 indexed id, address indexed investor);
