@@ -219,8 +219,6 @@ contract Trade is MandateBook, ITrade {
 
         require(countedTrades[agreementId] == openTradesCount, "Trades not calculated");
 
-        AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
-
         TradeLog memory _t;
 
         if (openTradesCount == 0) {

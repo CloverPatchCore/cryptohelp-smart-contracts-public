@@ -44,6 +44,11 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         _;
     }
 
+    modifier onlyPositiveAmount(uint256 amount) {
+        require(amount > 0, "Amount should be positive");
+        _;
+    }
+
     constructor() public {
         _init();
     }
@@ -189,6 +194,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     ) external returns (uint256) {
 
         //validations
+        require(targetReturnRate <= maxCollateralRateIfAvailable, "Max collateral is greater than target return rate");
 
         //actions
         _agreements.push(Agreement({
@@ -256,7 +262,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //collatAmount processed separately
         aa.activePeriod = activePeriod;
         aa.openPeriod = openPeriod;
-        uint256 newCollateral;
         if(collatAmount > aa.__collatAmount) {
             _transferDepositCollateral(id, collatAmount - aa.__collatAmount);
         }
@@ -300,21 +305,19 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return transferred;
     }
 
-    function _transferWithdrawCollateral(uint256 agreementID, uint256 amount) internal returns(uint256 transferred) {
+    function _transferWithdrawCollateral(uint256 agreementID, uint256 amount) internal {
         Agreement storage a = _agreements[agreementID];
-
-        transferred = __safeTransferFrom(a.baseCoin, address(this), msg.sender, amount);
-
-        //we can't actually withdraw more collateral that is available
-        require(a.__freeCollatAmount > transferred);
-        a.__freeCollatAmount -= transferred;
-        a.__collatAmount -= transferred;
+        IERC20 ierc20 = IERC20(a.baseCoin);
+        ierc20.transfer(msg.sender, amount);
+        a.__freeCollatAmount -= amount;
+        a.__collatAmount -= amount;
     }
 
-    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ override returns (uint256 finalAgreementCollateralBalance) {
-        require(agreementID < _agreements.length);
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external override onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) onlyPositiveAmount(amount) {
 
         Agreement storage a = _agreements[agreementID];
+        require(a.status < AgreementLifeCycle.PUBLISHED, "Can't withdraw collateral at this stage");
+        require(a.__freeCollatAmount >= amount, "Not enough free collateral amount");
         _transferWithdrawCollateral(agreementID, amount);
 
         emit WithdrawCollateral(agreementID, a.manager, amount);
@@ -457,7 +460,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     // @TODO
-    function cancelAgreement(uint256 agreementID) external onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) {
+    function cancelAgreement(uint256 agreementID) external view onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) {
         revert("to be implemented later");
     }
 

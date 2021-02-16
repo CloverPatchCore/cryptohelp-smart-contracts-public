@@ -14,6 +14,7 @@ const {
 } = require("@openzeppelin/test-helpers");
 
 const {
+  testReject,
   timeTravelTo,
   timeTravelToBlock
 } = require("./helper");
@@ -256,4 +257,119 @@ contract('MandateBook', (accounts) => {
   //   });
   // });
   describe('Access Violations Checks', async () => {});
+  describe('Method withdrawCollateral(uint256 agreementID, uint256 amount)', async () => {
+    before(async () => {
+      amountToCollat = toWei(50);
+      withdrawAmount = toWei(10);
+      targetReturnRate = 30;
+      maxCollateralRateIfAvailable = 80;
+
+      await bPound.approve(mandateBook.address, amountToCollat.mul(new BN(2)), { from: MANAGER1 });
+
+      agreementIds = [];
+      for (let i = 0; i < 2; i++) {
+        tx = await mandateBook.createAgreement(
+          bPound.address,
+          targetReturnRate,
+          maxCollateralRateIfAvailable,
+          amountToCollat,
+          toBN(OPENPERIOD1),
+          toBN(DURATION1),
+          { from : MANAGER1 }
+        );
+        agreementIds.push(tx.receipt.logs[0].args[0]);
+      }
+      [agreementIdForNegativeCases, agreementIdForPositiveCases] = agreementIds;
+      agreement = await mandateBook.getAgreement(agreementIdForNegativeCases);
+    });
+    describe('When invalid agreementId', async () => {
+      testReject(
+        () => mandateBook.withdrawCollateral(
+          agreementIdForNegativeCases.add(new BN(100)),
+          withdrawAmount,
+          { from: MANAGER1 }
+        ),
+        "Agreement not exist"
+      );
+    });
+    describe('When caller is not manager of agreement', async () => {
+      testReject(
+        () => mandateBook.withdrawCollateral(agreementIdForNegativeCases, withdrawAmount, { from: MANAGER2 }),
+        "Only appointed Fund Manager"
+      );
+    });
+    describe('When withdraw amount is not positive', async () => {
+      testReject(
+        () => mandateBook.withdrawCollateral(agreementIdForNegativeCases, 0, { from: MANAGER1 }),
+        "Amount should be positive"
+      );
+    });
+    describe('When withdraw amount is more than agreement free collateral amount', async () => {
+      testReject(
+        () => mandateBook.withdrawCollateral(
+          agreementIdForNegativeCases,
+          amountToCollat.add(new BN(1)),
+          { from: MANAGER1 }
+        ),
+        "Not enough free collateral amount"
+      );
+    });
+    describe('When agreement state is more than POPULATED', async () => {
+      before(async () => {
+        await mandateBook.publishAgreement(
+          agreementIdForNegativeCases,
+          { from: MANAGER1 }
+        );
+        agreement = await mandateBook.getAgreement(agreementIdForNegativeCases);
+      });
+      it("should agreement status be equal to expected", () => assert.strictEqual(
+        agreement.status, '2'
+      ));
+      testReject(
+        () => mandateBook.withdrawCollateral(agreementIdForNegativeCases, withdrawAmount, { from: MANAGER1 }),
+        "Can't withdraw collateral at this stage"
+      )
+    });
+    describe('When all conditions are good', async () => {
+      before(async () => {
+        agreement = await mandateBook.getAgreement(agreementIdForPositiveCases);
+        collatAmountBefore = new BN(agreement.__collatAmount);
+        freeCollatAmountBefore = new BN(agreement.__freeCollatAmount);
+        balanceBefore = await bPound.balanceOf(MANAGER1);
+      });
+      it('should success', async () => {
+        result = await mandateBook.withdrawCollateral(agreementIdForPositiveCases, withdrawAmount, { from: MANAGER1 });
+        agreement = await mandateBook.getAgreement(agreementIdForPositiveCases);
+      });
+      it('should update `__collatAmount` in agreement object', () => {
+        collatAmountAfter = agreement.__collatAmount;
+        assert.strictEqual(collatAmountAfter.toString(10), collatAmountBefore.sub(withdrawAmount).toString(10));
+      });
+      it('should update `__freeCollatAmount` in agreement object', () => {
+        freeCollatAmountAfter = agreement.__freeCollatAmount;
+        assert.strictEqual(freeCollatAmountAfter.toString(10), freeCollatAmountBefore.sub(withdrawAmount).toString(10));
+      });
+      it('should increase manger balance', async () => {
+        balanceAfter = await bPound.balanceOf(MANAGER1);
+        assert.strictEqual(balanceAfter.toString(10), balanceBefore.add(withdrawAmount).toString(10));
+      });
+      describe('should emit event', async () => {
+        before(() => {
+          event_ = result.logs[0];
+        });
+        it('should event `name` be equal to expected', () => {
+          assert.strictEqual(event_.event, 'WithdrawCollateral');
+        });
+        it('should `aggreementID` field be equal to expected', () => {
+          assert.strictEqual(event_.args[0].toString(10), agreementIdForPositiveCases.toString(10));
+        });
+        it('should `manager` field be equal to expected', () => {
+          assert.strictEqual(event_.args[1], MANAGER1);
+        });
+        it('should `amount` field be equal to expected', () => {
+          assert.strictEqual(event_.args[2].toString(10), withdrawAmount.toString(10));
+        });
+      });
+    });
+  });
 })

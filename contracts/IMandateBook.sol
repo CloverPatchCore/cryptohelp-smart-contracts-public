@@ -31,5 +31,5 @@ interface IMandateBook {
     function getAgreementStatus(uint id) external view returns (AMandate.AgreementLifeCycle status);
 
     function depositCollateral(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 finalAgreementCollateralBalance);
-    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */ returns (uint256 finalAgreementCollateralBalance);
+    function withdrawCollateral(uint256 agreementID, uint256 amount) external /* payable */;
 }

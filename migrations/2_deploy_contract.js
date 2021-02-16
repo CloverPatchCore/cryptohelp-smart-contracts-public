@@ -29,7 +29,7 @@ module.exports = async function (deployer, network, accounts) {
     factory = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
     router2 = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
   } else
-  if (["develop", "soliditycoverage"].includes(network)) {
+  if (["development", "soliditycoverage"].includes(network)) {
     WETH = await MockERC20.new('WETH', 'WETH', toWei('100000000'), { from: OWNER });
     const factoryInstance = await UniswapV2Factory.new(OWNER, { from: OWNER });
     const router2Instance = await UniswapV2Router02.new(factoryInstance.address, WETH.address, { from: OWNER });
