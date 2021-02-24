@@ -15,6 +15,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     ITrade private _trd = ITrade(address(this));
     Mandate[] internal _mandates;
     Agreement[] internal _agreements;
+    mapping(uint256 => mapping(address => uint256)) internal _agreementTradingTokenAmount;
     //data structure designated to holding the info about the mandate
 
     //TODO to review
@@ -65,6 +66,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     // @dev getter for agreement
     function getAgreement(uint id) external view override onlyExistAgreement(id) returns (AMandate.Agreement memory agreement) {
         return _agreements[id];
+    }
+
+    function getAgreementTradingTokenAmount(uint256 agreementId, address token) external view returns (uint256) {
+        return _agreementTradingTokenAmount[agreementId][token];
     }
 
     //TODO to review
@@ -517,6 +522,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // @TODO: do not activate till open period is over
 
         aa.status = AgreementLifeCycle.ACTIVE;
+        _agreementTradingTokenAmount[id][aa.baseCoin] = aa.__committedCapital;
 
         emit ActivateAgreement(id, aa.manager);
     }

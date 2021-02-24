@@ -262,9 +262,18 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
     let tokenIn = DAI.address,
         tokenOut = WETH.address,
-        amountIn = 1000,
-        amountOutMin = 1,
-        deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;;
+        amountIn = toBN(1000),
+        amountOutMin = toBN(1),
+        deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
+    
+    assert.strictEqual(
+      (await DAI.balanceOf(trade.address)).toString(10),
+      (await trade.getAgreementTradingTokenAmount(agreementId, tokenIn)).toString(10)
+    );
+    assert.strictEqual(
+      (await WETH.balanceOf(trade.address)).toString(10),
+      (await trade.getAgreementTradingTokenAmount(agreementId, tokenOut)).toString(10)
+    );
 
     const receipt = await trade.swapTokenToToken(
         agreementId,
@@ -276,6 +285,15 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         {
           from: MANAGER1
         }
+    );
+
+    assert.strictEqual(
+      (await DAI.balanceOf(trade.address)).toString(10),
+      (await trade.getAgreementTradingTokenAmount(agreementId, tokenIn)).toString(10)
+    );
+    assert.strictEqual(
+      (await WETH.balanceOf(trade.address)).toString(10),
+      (await trade.getAgreementTradingTokenAmount(agreementId, tokenOut)).toString(10)
     );
 
     await expectEvent(

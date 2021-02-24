@@ -136,7 +136,7 @@ contract Trade is MandateBook, ITrade {
     )
     external
     override
-    canTrade(agreementId, tokenOut)
+    canTrade(agreementId)
     {
         _swapTokenToToken(
             agreementId,
@@ -295,12 +295,17 @@ contract Trade is MandateBook, ITrade {
     internal
     returns (uint256[] memory amounts)
     {
+        uint256 tokenInMaxValue = _agreementTradingTokenAmount[agreementId][tokenIn];
+        require(tokenInMaxValue >= amountIn, "Not enough tokenIn amount for this");
         IUniswapV2Pair pair = IUniswapV2Pair(_factory.getPair(tokenIn, tokenOut));
         require(address(pair) != address(0), "Pair not exist");
 
         (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
 
         require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
+        if (pair.token1() == tokenIn) {
+            (reserve0, reserve1) = (reserve1, reserve0);
+        }
 
         TransferHelper.safeApprove(tokenIn, address(_router), amountIn);
         TransferHelper.safeApprove(tokenIn, address(this), amountIn);
@@ -315,14 +320,11 @@ contract Trade is MandateBook, ITrade {
         }
 
         amounts = new uint256[](1);
-
         amounts[0] = 0;
-
-        TransferHelper.safeTransferFrom(
-            path[0], address(this), address(pair), amountIn
-        );
-
         amounts = _router.swapExactTokensForTokens(amountIn, amountOut, path, address(this), deadline);
+
+        _agreementTradingTokenAmount[agreementId][tokenIn] = tokenInMaxValue - amounts[0];
+        _agreementTradingTokenAmount[agreementId][tokenOut] = _agreementTradingTokenAmount[agreementId][tokenOut] + amounts[amounts.length - 1];
 
         trades[agreementId].push(
             TradeLog({
@@ -344,7 +346,7 @@ contract Trade is MandateBook, ITrade {
         );
     }
 
-    modifier canTrade(uint256 agreementId, address outAddress) {
+    modifier canTrade(uint256 agreementId) {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
 
         require(_a.manager == msg.sender, "Not manager");
