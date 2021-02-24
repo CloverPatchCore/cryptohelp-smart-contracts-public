@@ -1,4 +1,5 @@
 const Trade = artifacts.require('./Trade'); // MandateBook
+const MockedTrade = artifacts.require('./MockedTrade');
 const ERC20 = artifacts.require('./MockERC20');
 const _require = require("app-root-path").require;
 const BlockchainCaller = _require("/utils/blockchain_caller");
@@ -62,7 +63,7 @@ contract('MandateBook', (accounts) => {
     mandateBook = await Trade.deployed(); // MandateBook
 
     // deploy a couple of funny stablecoins to use as capital and collateral
-    bPound = await ERC20.new('BPound', 'bLBP', toWei(1_000_000), {from: MINTER});
+    bPound = await ERC20.new('BPound', 'bLBP', toWei(100_000_000), {from: MINTER});
     bYen = await ERC20.new('BYen', 'bY', toWei(500_000), {from: MINTER});
     bHryvna = await ERC20.new('BHryvna', 'bUAH', toWei(250_000), {from: MINTER});
 
@@ -257,6 +258,109 @@ contract('MandateBook', (accounts) => {
   //   });
   // });
   describe('Access Violations Checks', async () => {});
+  describe("Method withdrawManagerCollateral(uint256 agreementID", async () => {
+    before(async () => {
+      mockedTrade = await MockedTrade.deployed();
+      depositCollateralAmount = toWei(200_000);
+      agreementIncome = toWei(300_000);
+      commitAmount = toWei(70_000);
+      targetReturnRate = 30;
+      maxCollateralRateIfAvailable = 80;
+      minCollatRateRequirement = 0;
+
+      await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+      await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+      tx = await mockedTrade.createAgreement(
+        bPound.address,
+        targetReturnRate,
+        maxCollateralRateIfAvailable,
+        depositCollateralAmount,
+        toBN(OPENPERIOD1),
+        toBN(DURATION1),
+        { from : MANAGER1 }
+      );
+      agreementId = tx.receipt.logs[0].args[0];
+      agreement = await mockedTrade.getAgreement(agreementId);
+      tx = await mockedTrade.publishAgreement(agreementId, {from: MANAGER1});
+
+      await bPound.transfer(INVESTOR1, commitAmount, { from: MINTER });
+      await bPound.approve(mockedTrade.address, commitAmount, { from: INVESTOR1 });
+      res = await mockedTrade.commitToAgreement(
+        agreementId,
+        commitAmount,
+        minCollatRateRequirement,
+        { from: INVESTOR1 }
+      );
+      mandateId = res.logs[0].args.mandateID;
+      await timeTravelTo(OPENPERIOD1);
+      await mockedTrade.activateAgreement(agreementId, { from: MANAGER1 });
+      await bPound.transfer(MANAGER1, agreementIncome, { from: MINTER });
+      await bPound.approve(mockedTrade.address, agreementIncome, { from: MANAGER1 });
+      await mockedTrade.increaseAgreementIncome(agreementId, agreementIncome, { from: MANAGER1 });
+      await timeTravelTo(HALFDURATION1 + 1000);
+    });
+    describe("When invalid agreement", async () => {
+      testReject(
+        () => mockedTrade.withdrawManagerCollateral(agreementId + 1, { from: MANAGER1 }),
+        "Agreement not exist"
+      );
+    });
+    describe("When invalid caller", async () => {
+      testReject(
+        () => mockedTrade.withdrawManagerCollateral(agreementId, { from: MANAGER2 }),
+        "Only appointed Fund Manager"
+      );
+    });
+    describe("When agreement not expired", async () => {
+      testReject(
+        () => mockedTrade.withdrawManagerCollateral(agreementId, { from: MANAGER1 }),
+        "Agreement should be in EXPIRED status"
+      );
+    });
+    describe("When all conditions are good", async () => {
+      before(async () => {
+        hundred = toBN(100);
+        await mockedTrade.setExpiredAgreement(agreementId, { from: MANAGER1 });
+        balance = await mockedTrade.balances(agreementId);
+        managerBalanceBefore = await bPound.balanceOf(MANAGER1);
+      });
+      it("should success", async () => {
+        result = await mockedTrade.withdrawManagerCollateral(agreementId, { from: MANAGER1 });
+        agreement = await mockedTrade.getAgreement(agreementId);
+      });
+      it("should increase manager balance for expected amount", async () => {
+        committedCapital = toBN(agreement.__committedCapital);
+        targetReturnRate = toBN(agreement.targetReturnRate);
+        expectedWithdrawnAmount = balance.sub(committedCapital.div(hundred).mul(hundred.add(targetReturnRate)));
+        managerBalance = await bPound.balanceOf(MANAGER1);
+        assert.strictEqual(
+          managerBalance.toString(10),
+          managerBalanceBefore.add(expectedWithdrawnAmount).toString(10)
+        );
+      });
+      it("should change agreement status to expected", () => {
+        assert.strictEqual(agreement.status, '7');
+      });
+      describe('should emit event', async () => {
+        before(() => {
+          event_ = result.logs[0];
+        });
+        it('should event `name` be equal to expected', () => {
+          assert.strictEqual(event_.event, 'ManagerCollateralWithdrawn');
+        });
+        it('should `agreementID` field be equal to expected', () => {
+          assert.strictEqual(event_.args[0].toString(10), agreementId.toString(10));
+        });
+        it('should `manager` field be equal to expected', () => {
+          assert.strictEqual(event_.args[1], MANAGER1);
+        });
+        it('should `amount` field be equal to expected', () => {
+          assert.strictEqual(event_.args[2].toString(10), expectedWithdrawnAmount.toString(10));
+        });
+      });
+    });
+
+  });
   describe('Method withdrawCollateral(uint256 agreementID, uint256 amount)', async () => {
     before(async () => {
       amountToCollat = toWei(50);
@@ -360,7 +464,7 @@ contract('MandateBook', (accounts) => {
         it('should event `name` be equal to expected', () => {
           assert.strictEqual(event_.event, 'WithdrawCollateral');
         });
-        it('should `aggreementID` field be equal to expected', () => {
+        it('should `agreementID` field be equal to expected', () => {
           assert.strictEqual(event_.args[0].toString(10), agreementIdForPositiveCases.toString(10));
         });
         it('should `manager` field be equal to expected', () => {
