@@ -1,6 +1,7 @@
 const { toWei } = require("web3-utils");
 
 const Trade = artifacts.require("Trade");
+const MockedTrade = artifacts.require("MockedTrade");
 const MockERC20 = artifacts.require("MockERC20");
 const UniswapV2FactoryJson = require("@uniswap/v2-core/build/UniswapV2Factory");
 const UniswapV2Router02Json = require("@uniswap/v2-periphery/build/UniswapV2Router02");
@@ -35,6 +36,7 @@ module.exports = async function (deployer, network, accounts) {
     const router2Instance = await UniswapV2Router02.new(factoryInstance.address, WETH.address, { from: OWNER });
     factory = factoryInstance.address
     router2 = router2Instance.address
+    await deployer.deploy(MockedTrade, factory, router2);
   } else {
     throw new Error("Not configured")
   }

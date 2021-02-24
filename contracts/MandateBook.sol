@@ -207,7 +207,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             __freeCollatAmount: 0,
             __committedCapital: 0, /* initially there's no capital committed  */
             __committedMandates: 0,
-            __settledMandates: 0,
             openPeriod: openPeriod,
             activePeriod: activePeriod,
             publishTimestamp: 0,
@@ -373,6 +372,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         m.__collatAmount += collat;
         aa.__freeCollatAmount -= collat;
     }
+
     function _transferWithdrawCapital(Agreement storage aa, Mandate storage m, uint256 amount) internal returns(uint256 transferred) {
 
         /* the allowance on the chosen ERC20 coin has to be sufficient for the transferFrom, taking into account all the previous allowances on possible earlier deals */
@@ -541,7 +541,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function settleMandate(uint256 mandateID) public onlyMandateOrAgreementOwner(mandateID) nonReentrant {
         Mandate storage m = _mandates[mandateID];
         Agreement storage aa = _agreements[m.agreement];
-        require(AgreementLifeCycle.EXPIRED == aa.status, "Agreement should be in EXPIRED status");
+        require(AgreementLifeCycle.EXPIRED <= aa.status, "Agreement should be in EXPIRED status");
         require(MandateLifeCycle.SETTLED > m.status, "Mandate was already settled");
 
         //find the share of the mandate in the pool and multiply by the finalBalance
@@ -562,17 +562,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //withdraw percentage of the share on the mandate
         //settle the collateral
         IERC20(aa.baseCoin).transfer(m.investor, mandateFinalCorrectedBalance);
-        //send remaining collateral to Manageer
-        //TODO in the future for sake of gas optimization. write the withdrawable collateral to the separate value to save on gas fees
-        IERC20(aa.baseCoin).transfer(aa.manager, mandateCollatLeft);
+
         m.status = MandateLifeCycle.SETTLED;
-
-        //mark as settled if all mandates done
-        aa.__settledMandates++;
-
-        if(aa.__committedMandates == aa.__settledMandates)  {
-            aa.status = AgreementLifeCycle.SETTLED;
-        }
 
         emit __service__settleMandate__values(
             mandateFinalTradeBalance,
@@ -586,15 +577,36 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             mandateFinalCorrectedBalance,
             //and then the remaining collateral if any to be sent back to Manager
             mandateCollatLeft
-    );
+        );
+    }
 
-    } 
+    function withdrawManagerCollateral(uint256 agreementID) external onlyExistAgreement(agreementID) onlyAgreementManager(agreementID) returns (bool) {
+        Agreement storage agreement = _agreements[agreementID];
+        require(agreement.status == AgreementLifeCycle.EXPIRED, "Agreement should be in EXPIRED status");
+        uint256 finalAgreementTradeBalance = _trd.balances(agreementID);
+        uint256 targetReturnAmount = agreement.__committedCapital * (100 + agreement.targetReturnRate) / 100;
+        uint256 amount = targetReturnAmount < finalAgreementTradeBalance ?
+            finalAgreementTradeBalance - targetReturnAmount :
+            0;
+        agreement.status = AgreementLifeCycle.SETTLED;
+        if (amount != 0) {
+            address receiver = agreement.manager;
+            IERC20(agreement.baseCoin).transfer(receiver, amount);
+            emit ManagerCollateralWithdrawn(agreementID, receiver, amount);
+        }
+        return true;
+    }
     
     //#############################
     //#############################
     //#############################
     //#############################
     //#############################
+    event ManagerCollateralWithdrawn(
+        uint256 indexed agreementID,
+        address indexed manager,
+        uint256 amount
+    );
 
     event WaitForMoreCollateral(uint256 indexed agreementID, uint256 outstanding);
 

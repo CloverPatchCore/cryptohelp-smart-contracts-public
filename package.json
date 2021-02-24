@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "truffle compile --all",
-    "lint": "solhint contracts/*.sol",
+    "lint": "solhint contracts/*.sol contracts/*/*.sol",
     "test": "truffle test",
     "watch": "truffle watch"
   },
