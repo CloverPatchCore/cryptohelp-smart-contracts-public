@@ -150,12 +150,10 @@ contract Trade is MandateBook, ITrade {
 
     // @dev sell asset with optimal price by agreement id
     // @dev should be called before "sell", "sellAll"
-    function countPossibleTradesDirection(uint256 agreementId)
-    public
+    function _countPossibleTradesDirection(uint256 agreementId)
+    private
     onlyAfterActivePeriod(agreementId)
     {
-        require(countedTrades[agreementId] == 0, "Trades calculated");
-
         TradeLog memory _t;
         uint l = countTrades(agreementId);
         for (uint i = countedTrades[agreementId]; i < l; i++) {
@@ -185,7 +183,10 @@ contract Trade is MandateBook, ITrade {
     // @dev sell one asset with optimal price by agreement id // should work properly
     function sell(uint256 agreementId, address asset) public onlyAfterActivePeriod(agreementId) {
         require(!_agreementClosed[agreementId], "Agreement was closed");
-        require(countedTrades[agreementId] == countTrades(agreementId), "Trades not calculated");
+
+        if (countedTrades[agreementId] == 0) {
+            _countPossibleTradesDirection(agreementId);
+        }
 
         if (countTrades(agreementId) == 0) {
             _balances[agreementId].counted = _getInitBalance(agreementId);
@@ -215,9 +216,11 @@ contract Trade is MandateBook, ITrade {
     function sellAll(uint256 agreementId) external onlyAfterActivePeriod(agreementId) {
         require(!_agreementClosed[agreementId], "Agreement was closed");
 
-        uint256 openTradesCount = countTrades(agreementId);
+        if (countedTrades[agreementId] == 0) {
+            _countPossibleTradesDirection(agreementId);
+        }
 
-        require(countedTrades[agreementId] == openTradesCount, "Trades not calculated");
+        uint256 openTradesCount = countTrades(agreementId);
 
         TradeLog memory _t;
 
@@ -348,7 +351,7 @@ contract Trade is MandateBook, ITrade {
 
     modifier canTrade(uint256 agreementId) {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
-
+        require(countedTrades[agreementId] == 0, "Trades already calculated, use sell or sellAll");
         require(_a.manager == msg.sender, "Not manager");
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
 
