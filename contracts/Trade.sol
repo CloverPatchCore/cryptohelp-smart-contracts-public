@@ -176,7 +176,7 @@ contract Trade is MandateBook, ITrade {
             getBaseAsset(agreementId)
         );
         amountOut = _router.getAmountOut(
-            countedBalance[agreementId][address(0)], // amountIn
+            countedBalance[agreementId][asset], // amountIn
             reserveA,
             reserveB
         );
