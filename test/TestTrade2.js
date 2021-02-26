@@ -37,6 +37,7 @@ const {
   timeTravelToBlock,
   expandTo18Decimals
 } = require("./helper");
+const { assert } = require('chai');
 
 function toWei(x) {
   return web3.utils.toWei(toBN(x) /*, "nano"*/);
@@ -265,14 +266,16 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         amountIn = toBN(1000),
         amountOutMin = toBN(1),
         deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
-    
+
+    agreementTradingDAIAmountBefore = await trade.getAgreementTradingTokenAmount(agreementId, tokenIn);
+    agreementTradingWETHAmountBefore = await trade.getAgreementTradingTokenAmount(agreementId, tokenOut);
     assert.strictEqual(
       (await DAI.balanceOf(trade.address)).toString(10),
-      (await trade.getAgreementTradingTokenAmount(agreementId, tokenIn)).toString(10)
+      agreementTradingDAIAmountBefore.toString(10)
     );
     assert.strictEqual(
       (await WETH.balanceOf(trade.address)).toString(10),
-      (await trade.getAgreementTradingTokenAmount(agreementId, tokenOut)).toString(10)
+      agreementTradingWETHAmountBefore.toString(10)
     );
 
     const receipt = await trade.swapTokenToToken(
@@ -287,13 +290,27 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         }
     );
 
+    amountInFromEvent = receipt.logs[0].args.amountIn.toString(10);
+    amountOutFromEvent = receipt.logs[0].args.amountOut.toString(10);
+    agreementTradingDAIAmount = await trade.getAgreementTradingTokenAmount(agreementId, tokenIn);
+    agreementTradingWETHAmount = await trade.getAgreementTradingTokenAmount(agreementId, tokenOut);
+
+    assert.strictEqual(
+      agreementTradingDAIAmount.toString(10),
+      agreementTradingDAIAmountBefore.sub(toBN(amountInFromEvent)).toString(10)
+    );
+    assert.strictEqual(
+      agreementTradingWETHAmount.toString(10),
+      agreementTradingWETHAmountBefore.add(toBN(amountOutFromEvent)).toString(10)
+    );
+
     assert.strictEqual(
       (await DAI.balanceOf(trade.address)).toString(10),
-      (await trade.getAgreementTradingTokenAmount(agreementId, tokenIn)).toString(10)
+      agreementTradingDAIAmount.toString(10)
     );
     assert.strictEqual(
       (await WETH.balanceOf(trade.address)).toString(10),
-      (await trade.getAgreementTradingTokenAmount(agreementId, tokenOut)).toString(10)
+      agreementTradingWETHAmount.toString(10)
     );
 
     await expectEvent(

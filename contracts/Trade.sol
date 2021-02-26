@@ -102,6 +102,9 @@ contract Trade is MandateBook, ITrade {
         uint112 reserve0;
         uint112 reserve1;
         (reserve0, reserve1,) = _pair.getReserves();
+        if (tokenA == _pair.token1()) {
+            (reserve0, reserve1) = (reserve1, reserve0);
+        }
 
         return (reserve0, reserve1);
     }
@@ -304,11 +307,7 @@ contract Trade is MandateBook, ITrade {
         require(address(pair) != address(0), "Pair not exist");
 
         (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
-
         require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
-        if (pair.token1() == tokenIn) {
-            (reserve0, reserve1) = (reserve1, reserve0);
-        }
 
         TransferHelper.safeApprove(tokenIn, address(_router), amountIn);
         TransferHelper.safeApprove(tokenIn, address(this), amountIn);
