@@ -108,7 +108,7 @@ contract('MandateBook', (accounts) => {
     it('.. emitting the CreateAgreement event', async () => {
       expectEvent(txA, 'CreateAgreement', 
       {
-       agreementID: toBN(iA),
+        agreementId: toBN(iA),
         manager: toChecksumAddress(MANAGER1),
         baseCoin: bPound.address,
         targetReturnRate: toBN(30),
@@ -150,7 +150,7 @@ contract('MandateBook', (accounts) => {
      
       expectEvent(txA, 'PublishAgreement', 
       {
-        agreementID: toBN(0),
+        agreementId: toBN(0),
         manager: toChecksumAddress(MANAGER1),
         // baseCoin: toChecksumAddress(base1),
         baseCoin: bPound.address,

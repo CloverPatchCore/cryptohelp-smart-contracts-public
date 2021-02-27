@@ -1,20 +1,21 @@
 pragma solidity ^0.6.6;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Library } from "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
+import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import "@uniswap/lib/contracts/libraries/TransferHelper.sol";
+
 import "./IMandateBook.sol";
 import "./MandateBook.sol";
-
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
-import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
-import '@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol';
-import '@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol';
-import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 
 //import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Trade is MandateBook, ITrade {
-    using SafeMath for uint;
+    using SafeMath for uint256;
 
     IMandateBook _IMB = IMandateBook(address(this));
     IUniswapV2Router02 _router;
@@ -35,10 +36,10 @@ contract Trade is MandateBook, ITrade {
     mapping (uint256 => uint256) public countedTrades; // agreement id -> counter ticker
 
     // is was added to counted balance, token marked ad sold
-    mapping(uint => mapping(address => bool)) tokenSold; // agreement id -> mapping
+    mapping(uint256 => mapping(address => bool)) tokenSold; // agreement id -> mapping
 
     // by agreement id we store the balances of Assets (on the end of the agreement)
-    mapping(uint => mapping(address => uint256)) countedBalance; // agreement id -> mapping
+    mapping(uint256 => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
     event Traded(
         uint256 agreementId,
@@ -59,11 +60,11 @@ contract Trade is MandateBook, ITrade {
         return address(_IMB);
     }
 
-    function agreementClosed(uint agreementId) external override view returns (bool) {
+    function agreementClosed(uint256 agreementId) external override view returns (bool) {
         return _agreementClosed[agreementId];
     }
 
-    function balances(uint256 agreementId) external override view returns (uint256 counted) {
+    function balances(uint256 agreementId) external override view returns (uint256) {
         return _balances[agreementId].counted;
     }
 
@@ -78,15 +79,15 @@ contract Trade is MandateBook, ITrade {
     // return profit by agreement, depend on first known amount
     // returns absolute value gain or loss (positive is indicator)
     function countProfit(uint256 agreementId) public override view returns (uint256 amount, bool positive) {
-        if (_getInitBalance(agreementId) < _balances[agreementId].counted) {
-            amount = _balances[agreementId].counted.sub(_getInitBalance(agreementId));
+        uint256 agreementBalance = _balances[agreementId].counted;
+        uint256 agreementInitBalance = _getInitBalance(agreementId);
+        if (agreementInitBalance < agreementBalance) {
+            amount = agreementBalance.sub(agreementInitBalance);
             positive = true;
         } else {
-            amount = _getInitBalance(agreementId).sub(_balances[agreementId].counted);
+            amount = agreementInitBalance.sub(agreementBalance);
             positive = false;
         }
-
-        return (amount, positive);
     }
 
     // @dev tokenA, tokenB
@@ -99,8 +100,8 @@ contract Trade is MandateBook, ITrade {
     // @dev get liquidity for token A, B.
     function getLiquidity(address tokenA, address tokenB) public override view returns(uint256, uint256) {
         IUniswapV2Pair _pair = IUniswapV2Pair(_factory.getPair(tokenA, tokenB));
-        uint112 reserve0;
-        uint112 reserve1;
+        uint256 reserve0;
+        uint256 reserve1;
         (reserve0, reserve1,) = _pair.getReserves();
         if (tokenA == _pair.token1()) {
             (reserve0, reserve1) = (reserve1, reserve0);
@@ -109,13 +110,13 @@ contract Trade is MandateBook, ITrade {
         return (reserve0, reserve1);
     }
 
-    function getFinalBalance(uint256 agreementId) public override view returns (uint) {
-        Balance memory _b = _balances[agreementId];
-        return _b.counted;
+    function getFinalBalance(uint256 agreementId) public override view returns (uint256) {
+        Balance memory balance = _balances[agreementId];
+        return balance.counted;
     }
 
     // trades from trader by the agreement
-    function countTrades(uint256 agreementId) public override view returns (uint) {
+    function countTrades(uint256 agreementId) public override view returns (uint256) {
         return trades[agreementId].length;
     }
 
@@ -157,22 +158,24 @@ contract Trade is MandateBook, ITrade {
     private
     onlyAfterActivePeriod(agreementId)
     {
-        TradeLog memory _t;
-        uint l = countTrades(agreementId);
-        for (uint i = countedTrades[agreementId]; i < l; i++) {
-            _t = trades[agreementId][i];
+        TradeLog memory tradeLog;
+        uint256 agreementTradesCount = countTrades(agreementId);
+        for (uint256 i = countedTrades[agreementId]; i < agreementTradesCount; i++) {
+            tradeLog = trades[agreementId][i];
             if (i == 0) {
-                countedBalance[agreementId][_t.fromAsset] = _getInitBalance(agreementId);
+                countedBalance[agreementId][tradeLog.fromAsset] = _getInitBalance(agreementId);
             }
-            countedBalance[agreementId][_t.fromAsset] -= _t.amountIn;
-            countedBalance[agreementId][_t.toAsset] += _t.amountOut;
+            countedBalance[agreementId][tradeLog.fromAsset] = countedBalance[agreementId][tradeLog.fromAsset].sub(
+                tradeLog.amountIn);
+            countedBalance[agreementId][tradeLog.toAsset] = countedBalance[agreementId][tradeLog.toAsset].add(
+                tradeLog.amountOut);
         }
-        countedTrades[agreementId] = l;
+        countedTrades[agreementId] = agreementTradesCount;
     }
 
     // @dev get optimal amount in base asset, depend on agreement
-    function getOutAmount(uint256 agreementId, address asset) public view returns (uint amountOut) {
-        (uint reserveA, uint reserveB) = getLiquidity(
+    function getOutAmount(uint256 agreementId, address asset) public view returns (uint256 amountOut) {
+        (uint256 reserveA, uint256 reserveB) = getLiquidity(
             (address(0) == asset) ? _router.WETH() : asset,
             getBaseAsset(agreementId)
         );
@@ -197,11 +200,11 @@ contract Trade is MandateBook, ITrade {
             return;
         }
 
-        uint counterToClose;
+        uint256 counterToClose;
 
-        TradeLog memory _t;
-        for (uint i = 0; i < countTrades(agreementId); i++) {
-            _t = trades[agreementId][i];
+        TradeLog memory tradeLog;
+        for (uint256 i = 0; i < countTrades(agreementId); i++) {
+            tradeLog = trades[agreementId][i];
             if (!tokenSold[agreementId][asset]) {
                 _sell(agreementId, asset);
             }
@@ -225,7 +228,7 @@ contract Trade is MandateBook, ITrade {
 
         uint256 openTradesCount = countTrades(agreementId);
 
-        TradeLog memory _t;
+        TradeLog memory tradeLog;
 
         if (openTradesCount == 0) {
             _balances[agreementId].counted = _getInitBalance(agreementId);
@@ -234,10 +237,10 @@ contract Trade is MandateBook, ITrade {
             return;
         }
 
-        for (uint i = 0; i < openTradesCount; i++) {
-            _t = trades[agreementId][i];
-            if (!tokenSold[agreementId][_t.toAsset]) {
-                _sell(agreementId, _t.toAsset);
+        for (uint256 i = 0; i < openTradesCount; i++) {
+            tradeLog = trades[agreementId][i];
+            if (!tokenSold[agreementId][tradeLog.toAsset]) {
+                _sell(agreementId, tradeLog.toAsset);
             }
         }
 
@@ -251,11 +254,12 @@ contract Trade is MandateBook, ITrade {
     function _sell(uint256 agreementId, address asset) internal {
         require(!_agreementClosed[agreementId], "Agreement was closed");
 
-        AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
+        AMandate.Agreement memory agreement = _IMB.getAgreement(agreementId);
+        uint256 currentTimestamp = block.timestamp;
 
         require(
-            block.timestamp > uint(_a.activePeriod).add(_a.publishTimestamp) &&
-            _a.status != AMandate.AgreementLifeCycle.EXPIRED,
+            currentTimestamp > uint(agreement.activePeriod).add(agreement.publishTimestamp) &&
+            agreement.status != AMandate.AgreementLifeCycle.EXPIRED,
             "Agreement active or closed"
         );
 
@@ -264,8 +268,8 @@ contract Trade is MandateBook, ITrade {
             return;
         }
 
-        uint amountIn;
-        uint amountOut;
+        uint256 amountIn;
+        uint256 amountOut;
 
         require(!tokenSold[agreementId][asset], "Token has been swap yet");
 
@@ -278,14 +282,15 @@ contract Trade is MandateBook, ITrade {
             getBaseAsset(agreementId),
             amountIn,
             amountOut,
-            block.timestamp.add(timeFrame)
+            currentTimestamp.add(timeFrame)
         );
 
-        _balances[agreementId].counted += amounts[amounts.length - 1];
+        _balances[agreementId].counted = _balances[agreementId].counted.add(
+            amounts[amounts.length.sub(1)]);
         tokenSold[agreementId][asset] = true;
     }
 
-    function getPair( address tokenIn, address tokenOut) public view returns (address fromFactory, address fromLib) {
+    function getPair(address tokenIn, address tokenOut) public view returns (address fromFactory, address fromLib) {
         fromFactory = _factory.getPair(tokenIn, tokenOut);
         fromLib = UniswapV2Library.pairFor(address(_factory), tokenIn, tokenOut);
     }
@@ -301,40 +306,57 @@ contract Trade is MandateBook, ITrade {
     internal
     returns (uint256[] memory amounts)
     {
-        uint256 tokenInMaxValue = _agreementTradingTokenAmount[agreementId][tokenIn];
+        uint256 tokenInMaxValue = agreementTradingTokenAmount[agreementId][tokenIn];
         require(tokenInMaxValue >= amountIn, "Not enough tokenIn amount for this");
         IUniswapV2Pair pair = IUniswapV2Pair(_factory.getPair(tokenIn, tokenOut));
         require(address(pair) != address(0), "Pair not exist");
-
-        (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
-        require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
-
-        TransferHelper.safeApprove(tokenIn, address(_router), amountIn);
-        TransferHelper.safeApprove(tokenIn, address(this), amountIn);
-        TransferHelper.safeApprove(tokenIn, address(pair), amountIn);
-
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut;
-
-        if (deadline == 0) {
-            deadline = block.timestamp + timeFrame;
+        {
+            (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
+            require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
         }
 
-        amounts = new uint256[](1);
-        amounts[0] = 0;
-        amounts = _router.swapExactTokensForTokens(amountIn, amountOut, path, address(this), deadline);
+        address thisContract = address(this);
 
-        _agreementTradingTokenAmount[agreementId][tokenIn] = tokenInMaxValue - amounts[0];
-        _agreementTradingTokenAmount[agreementId][tokenOut] = _agreementTradingTokenAmount[agreementId][tokenOut] + amounts[amounts.length - 1];
+        TransferHelper.safeApprove(tokenIn, address(_router), amountIn);
+        TransferHelper.safeApprove(tokenIn, thisContract, amountIn);
+        TransferHelper.safeApprove(tokenIn, address(pair), amountIn);
+        uint256 currentTimestamp = block.timestamp;
+        deadline = deadline > 0 ? deadline : currentTimestamp.add(timeFrame);
+        {
+            address[] memory path = new address[](2);
+            path[0] = tokenIn;
+            path[1] = tokenOut;
+            amounts = _router.swapExactTokensForTokens(
+                amountIn,
+                amountOut,
+                path,
+                thisContract,
+                deadline
+            );
+        }
+        _saveSwapData(agreementId, tokenIn, tokenOut, amounts[0], amounts[amounts.length.sub(1)]);
+    }
+
+    function _saveSwapData(
+        uint256 agreementId,
+        address tokenIn,
+        address tokenOut,
+        uint256 firstAmount,
+        uint256 lastAmount
+    ) private {
+        uint256 currentTimestamp = block.timestamp;
+        agreementTradingTokenAmount[agreementId][tokenIn] = agreementTradingTokenAmount[agreementId][tokenIn].sub(
+            firstAmount);
+        agreementTradingTokenAmount[agreementId][tokenOut] = agreementTradingTokenAmount[
+            agreementId][tokenOut].add(lastAmount);
 
         trades[agreementId].push(
             TradeLog({
                 fromAsset: tokenIn,
                 toAsset: tokenOut,
-                amountIn: amounts[0],
-                amountOut: amounts[amounts.length - 1],
-                timestamp: block.timestamp
+                amountIn: firstAmount,
+                amountOut: lastAmount,
+                timestamp: currentTimestamp
             })
         );
 
@@ -342,9 +364,9 @@ contract Trade is MandateBook, ITrade {
             agreementId,
             tokenIn,
             tokenOut,
-            amounts[0],
-            amounts[amounts.length - 1],
-            block.timestamp
+            firstAmount,
+            lastAmount,
+            currentTimestamp
         );
     }
 

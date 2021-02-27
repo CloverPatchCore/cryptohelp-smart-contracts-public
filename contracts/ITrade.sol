@@ -20,11 +20,11 @@ interface ITrade is IMandateBook {
 
     function balances(uint256 agreementId) external view returns (uint256 counted);
 
-    function agreementClosed(uint agreementId) external view returns (bool);
+    function agreementClosed(uint256 agreementId) external view returns (bool);
 
-    function getFinalBalance(uint256 agreementId) external view returns (uint);
+    function getFinalBalance(uint256 agreementId) external view returns (uint256);
 
-    function countTrades(uint256 agreementId) external view returns (uint);
+    function countTrades(uint256 agreementId) external view returns (uint256);
 
     function getTrade(uint256 agreementId, uint256 index) external view returns (TradeLog memory tradeLog);
 
@@ -39,7 +39,7 @@ interface ITrade is IMandateBook {
 
     function countProfit(uint256 agreementId) external view returns (uint256 amount, bool positive);
 
-    function getPrice(address tokenA, address tokenB) external view returns(uint, uint);
+    function getPrice(address tokenA, address tokenB) external view returns(uint256, uint256);
 
     function getLiquidity(address tokenA, address tokenB) external view returns(uint256, uint256);
 }
