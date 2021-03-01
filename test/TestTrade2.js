@@ -245,7 +245,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         amountIn,
         amountOutMin,
         deadline
-    ), 'Not manager');
+    ), 'Caller is not agreement manager');
   });
 
   it('Should be possible to create new exchange', async () => {
@@ -267,8 +267,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         amountOutMin = toBN(1),
         deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
 
-    agreementTradingDAIAmountBefore = await trade.getAgreementTradingTokenAmount(agreementId, tokenIn);
-    agreementTradingWETHAmountBefore = await trade.getAgreementTradingTokenAmount(agreementId, tokenOut);
+    agreementTradingDAIAmountBefore = await trade.agreementTradingTokenAmount(agreementId, tokenIn);
+    agreementTradingWETHAmountBefore = await trade.agreementTradingTokenAmount(agreementId, tokenOut);
     assert.strictEqual(
       (await DAI.balanceOf(trade.address)).toString(10),
       agreementTradingDAIAmountBefore.toString(10)
@@ -292,8 +292,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
     amountInFromEvent = receipt.logs[0].args.amountIn.toString(10);
     amountOutFromEvent = receipt.logs[0].args.amountOut.toString(10);
-    agreementTradingDAIAmount = await trade.getAgreementTradingTokenAmount(agreementId, tokenIn);
-    agreementTradingWETHAmount = await trade.getAgreementTradingTokenAmount(agreementId, tokenOut);
+    agreementTradingDAIAmount = await trade.agreementTradingTokenAmount(agreementId, tokenIn);
+    agreementTradingWETHAmount = await trade.agreementTradingTokenAmount(agreementId, tokenOut);
 
     assert.strictEqual(
       agreementTradingDAIAmount.toString(10),
@@ -321,35 +321,32 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
   it('Should not be possible to close agreement before deadline', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000); // status agreement still ACTIVE
-
     await expectRevert(trade.sellAll(agreementId), "Agreement still active");
   });
 
   it('Should not be possible to close agreement twice', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
-
+    await trade.setExpiredAgreement(agreementId);
     await trade.sellAll(agreementId, { from: MANAGER1 });
-
     assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
-
     await expectRevert(trade.sellAll(agreementId, { from: MANAGER1 }), "Agreement was closed");
   })
 
   it('Should be possible to close agreement by any other person, then manager 1', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
-
+    await trade.setExpiredAgreement(agreementId);
     await trade.sellAll(agreementId, { from: MANAGER2 });
   })
 
   it('Should be possible to close agreement by any other person, then manager 2', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
-
+    await trade.setExpiredAgreement(agreementId);
     await trade.sellAll(agreementId, { from: TOKENHOLDER1 });
   })
 
   it('Should be possible to close agreement, if manager has no trades', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
-
+    await trade.setExpiredAgreement(agreementId);
     await trade.sellAll(agreementId, { from: MANAGER1 });
 
     assert.equal(
@@ -361,20 +358,20 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
   it('Should be possible to close agreement', async () => {
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
-
+    await trade.setExpiredAgreement(agreementId);
     await trade.sellAll(agreementId, { from: MANAGER1 });
 
     assert.equal((await trade.agreementClosed(agreementId)), true, "Agreement was NOT closed");
   })
 
-  if('Should be able to trade by manager', async () => {
-    // await trade.swapTokenToToken(
-    //     uint256 agreementId,
-    //     address tokenIn,
-    //     address tokenOut,
-    //     uint256 amountIn,
-    //     uint256 amountOut,
-    //     uint256 deadline
-    // );
-  });
+  // if('Should be able to trade by manager', async () => {
+  //   await trade.swapTokenToToken(
+  //       uint256 agreementId,
+  //       address tokenIn,
+  //       address tokenOut,
+  //       uint256 amountIn,
+  //       uint256 amountOut,
+  //       uint256 deadline
+  //   );
+  // });
 })
