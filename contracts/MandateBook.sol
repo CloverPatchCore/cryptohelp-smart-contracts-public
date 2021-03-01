@@ -555,15 +555,23 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = mandate.__committedCapital.mul(finalAgreementTradeBalance).div(agreement.__committedCapital);
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
-        uint256 profitAbsTarget = mandate.__committedCapital.mul(agreement.targetReturnRate.add(100).div(100));
-        //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
-        uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? profitAbsTarget.sub( mandateFinalTradeBalance) : 0;
-        //now if the above is higher than the actual collateral, it will only count actual collateral
-        uint256 recoverableCompensation = desiredCompensation > mandate.__collatAmount ? mandate.__collatAmount : desiredCompensation;
-        //let's calculate the final that we have to pay as a sum of trade balance and the compensation
-        uint256 mandateFinalCorrectedBalance = mandateFinalTradeBalance.add(recoverableCompensation);
-        //and then the remaining collateral if any to be sent back to Manager
-        uint256 mandateCollatLeft = mandate.__collatAmount.sub(recoverableCompensation);
+        uint256 profitAbsTarget = mandate.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
+
+        uint256 desiredCompensation;
+        uint256 recoverableCompensation;
+        uint256 mandateFinalCorrectedBalance;
+        if (mandateFinalTradeBalance < profitAbsTarget) {
+            //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
+            desiredCompensation = profitAbsTarget.sub(mandateFinalTradeBalance);
+
+            //now if the above is higher than the actual collateral, it will only count actual collateral
+            recoverableCompensation = desiredCompensation > mandate.__collatAmount
+                ? mandate.__collatAmount
+                : desiredCompensation;
+
+            //let's calculate the final that we have to pay as a sum of trade balance and the compensation
+            mandateFinalCorrectedBalance = mandateFinalTradeBalance.add(recoverableCompensation);
+        } else mandateFinalCorrectedBalance = profitAbsTarget;
 
         //withdraw percentage of the share on the mandate
         //settle the collateral
@@ -580,9 +588,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             //now if the above is higher than the actual collateral, it will only count actual collateral
             recoverableCompensation,
             //let's calculate the final that we have to pay as a sum of trade balance and the compensation
-            mandateFinalCorrectedBalance,
-            //and then the remaining collateral if any to be sent back to Manager
-            mandateCollatLeft
+            mandateFinalCorrectedBalance
         );
     }
 
@@ -683,9 +689,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //now if the above is higher than the actual collateral, it will only count actual collateral
         uint256 recoverableCompensation,
         //let's calculate the final that we have to pay as a sum of trade balance and the compensation
-        uint256 mandateFinalCorrectedBalance,
-        //and then the remaining collateral if any to be sent back to Manager
-        uint256 mandateCollatLeft
+        uint256 mandateFinalCorrectedBalance
     );
 
 }
