@@ -198,10 +198,7 @@ contract Trade is MandateBook, ITrade {
         }
 
         uint256 counterToClose;
-
-        TradeLog memory tradeLog;
         for (uint256 i = 0; i < countTrades(agreementId); i++) {
-            tradeLog = trades[agreementId][i];
             if (!tokenSold[agreementId][asset]) {
                 _sell(agreementId, asset);
             }
