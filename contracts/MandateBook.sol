@@ -555,7 +555,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // the final trade balance per this mandate is calculated as a share in the entire trade balance
         uint256 mandateFinalTradeBalance = mandate.__committedCapital.mul(finalAgreementTradeBalance).div(agreement.__committedCapital);
         //we are checking if any compensation from the collateral needed (if the profit is below the promised one)
-        uint256 profitAbsTarget = mandate.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
+        uint256 profitAbsTarget = mandate.__committedCapital.mul(agreement.targetReturnRate.add(100).div(100));
         //calculate the ideal compensation from the collateral to cover the gap between real profit and target profit
         uint256 desiredCompensation = mandateFinalTradeBalance < profitAbsTarget ? profitAbsTarget.sub( mandateFinalTradeBalance) : 0;
         //now if the above is higher than the actual collateral, it will only count actual collateral
@@ -590,7 +590,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         Agreement storage agreement = _agreements[agreementId];
         require(agreement.status == AgreementLifeCycle.EXPIRED, "Agreement should be in EXPIRED status");
         uint256 finalAgreementTradeBalance = _trd.balances(agreementId).add(agreement.__collatAmount);
-        uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100).div(100));
+        uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
         uint256 amount = targetReturnAmount < finalAgreementTradeBalance ?
             finalAgreementTradeBalance.sub(targetReturnAmount) :
             0;
