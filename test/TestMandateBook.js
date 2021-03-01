@@ -331,7 +331,8 @@ contract('MandateBook', (accounts) => {
       it("should increase manager balance for expected amount", async () => {
         committedCapital = toBN(agreement.__committedCapital);
         targetReturnRate = toBN(agreement.targetReturnRate);
-        expectedWithdrawnAmount = balance.sub(committedCapital.div(hundred).mul(hundred.add(targetReturnRate)));
+        expectedWithdrawnAmount = balance.sub(committedCapital.div(hundred).mul(hundred.add(targetReturnRate))).add(
+          depositCollateralAmount);
         managerBalance = await bPound.balanceOf(MANAGER1);
         assert.strictEqual(
           managerBalance.toString(10),
