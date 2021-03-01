@@ -590,7 +590,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         Agreement storage agreement = _agreements[agreementId];
         require(agreement.status == AgreementLifeCycle.EXPIRED, "Agreement should be in EXPIRED status");
         uint256 finalAgreementTradeBalance = _trd.balances(agreementId).add(agreement.__collatAmount);
-        uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
+        uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100).div(100));
         uint256 amount = targetReturnAmount < finalAgreementTradeBalance ?
             finalAgreementTradeBalance.sub(targetReturnAmount) :
             0;
