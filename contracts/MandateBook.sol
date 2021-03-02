@@ -589,7 +589,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function withdrawManagerCollateral(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) returns (bool) {
         Agreement storage agreement = _agreements[agreementId];
         require(agreement.status == AgreementLifeCycle.EXPIRED, "Agreement should be in EXPIRED status");
-        uint256 finalAgreementTradeBalance = _trd.balances(agreementId);
+        uint256 finalAgreementTradeBalance = _trd.balances(agreementId).add(agreement.__collatAmount);
         uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
         uint256 amount = targetReturnAmount < finalAgreementTradeBalance ?
             finalAgreementTradeBalance.sub(targetReturnAmount) :
