@@ -97,18 +97,18 @@ contract('MandateBook', (accounts) => {
         toBN(OPENPERIOD1), /* open period */ 
         toBN(DURATION1),  /* duration   */
         {from:MANAGER1});
-      iA = 0;
+      agreementId = txA.receipt.logs[0].args[0];
       });
 
     it('.. even with insufficient amount ..', async () => {
-      (await mandateBook.getAgreementCollateral(toBN(0))).should.be.bignumber.eq(toWei(70_000));
+      (await mandateBook.getAgreementCollateral(agreementId)).should.be.bignumber.eq(toWei(70_000));
     });
 
 
     it('.. emitting the CreateAgreement event', async () => {
       expectEvent(txA, 'CreateAgreement', 
       {
-        agreementId: toBN(iA),
+        agreementId: agreementId,
         manager: toChecksumAddress(MANAGER1),
         baseCoin: bPound.address,
         targetReturnRate: toBN(30),
@@ -130,27 +130,27 @@ contract('MandateBook', (accounts) => {
     });
     it('and one more with insufficient allowance of 50_000', async () => {
       //additional 100_000 collateral commitment this time
-      await mandateBook.depositCollateral(toBN(0), toWei(100_000), {from:MANAGER1});
+      await mandateBook.depositCollateral(agreementId, toWei(100_000), {from:MANAGER1});
       //Manager will try to put 100_000, out of which 50_000 pass through
     });
     it('.. thus the total collateral should end up being 70k+100k+50K = 220k', async () => {
-      await mandateBook.depositCollateral(toBN(0), toWei(100_000), {from:MANAGER1});
-      (await mandateBook.getAgreementCollateral(toBN(0))).should.be.bignumber.eq(toWei(220_000));
+      await mandateBook.depositCollateral(agreementId, toWei(100_000), {from:MANAGER1});
+      (await mandateBook.getAgreementCollateral(agreementId)).should.be.bignumber.eq(toWei(220_000));
     }); 
         
     it('Manager should be able to (re)populate an Agreement with terms/edit');
     it('.. whereas if the new collateral value is reduced, the collateral difference is being returned back on Manager ERC20 coin address');
     it('Manager should be able to set Agreement as published', async () => {
-      txA = await mandateBook.publishAgreement(toBN(0), {from: MANAGER1});
+      txPublish = await mandateBook.publishAgreement(agreementId, {from: MANAGER1});
 
     });
     it('.. emitting PublishAgreement Event', async () => {
-     var theblock =await web3.eth.getBlock(txA.blockNumber/*.toString*/);
+     var theblock = await web3.eth.getBlock(txPublish.blockNumber/*.toString*/);
      // await web3.eth.getBlockNumber();  
      
-      expectEvent(txA, 'PublishAgreement', 
+      expectEvent(txPublish, 'PublishAgreement',
       {
-        agreementId: toBN(0),
+        agreementId: agreementId,
         manager: toChecksumAddress(MANAGER1),
         // baseCoin: toChecksumAddress(base1),
         baseCoin: bPound.address,
@@ -176,11 +176,11 @@ contract('MandateBook', (accounts) => {
       //let's have IVNESTOR1 and INVEESTOR2 commit to Agreement 
       await bPound.approve(mandateBook.address, toWei(30_000), {from: INVESTOR1});
       //let's make a commitment with the capital exceeding allowance, where expected is our algorithm will max at the allowance
-      await mandateBook.commitToAgreement(toBN(0), toWei(1_200_000), toWei(0), {from: INVESTOR1});
+      await mandateBook.commitToAgreement(agreementId, toWei(1_200_000), toWei(0), {from: INVESTOR1});
       //now let's introduce 1 more investor
       await bPound.approve(mandateBook.address, toWei(10_000), {from: INVESTOR2});
-      await mandateBook.commitToAgreement(toBN(0), toWei(5_000), toWei(0), {from: INVESTOR2});
-      (await mandateBook.getAgreementCommittedCapital(toBN(0))).should.be.bignumber.eq(toWei(35_000));
+      await mandateBook.commitToAgreement(agreementId, toWei(5_000), toWei(0), {from: INVESTOR2});
+      (await mandateBook.getAgreementCommittedCapital(agreementId)).should.be.bignumber.eq(toWei(35_000));
       //await sleep((OPENPERIOD1 + 1) * 1000);
       await timeTravelTo(OPENPERIOD1);
 
@@ -199,8 +199,8 @@ contract('MandateBook', (accounts) => {
 
   describe('Agreement Trading Phase', async () => {
     it('Right after the Open Period is over, Manager should be able to ONLY ONCE Start Agreement', async () => {
-      await mandateBook.activateAgreement(toBN(0), {from: MANAGER1});
-      (await mandateBook.getAgreementStatus(toBN(0), {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
+      await mandateBook.activateAgreement(agreementId, {from: MANAGER1});
+      (await mandateBook.getAgreementStatus(agreementId, {from: OUTSIDER})).should.be.bignumber.eq(toBN(A_ACTIVE));
     });
     it('The Agreement should remain active throughout the DURATION', async () => {
       await timeTravelTo(HALFDURATION1);
@@ -221,9 +221,9 @@ contract('MandateBook', (accounts) => {
     //this should be enough for get outside of DURATION
     //await(HALFDURATION1+2000); //will be total duration plus 2 seconds
     it('Anyone can trigger the expiry of the contract and start settlement', async () => {
-      await timeTravelTo(HALFDURATION1+100);
-      await mandateBook.setExpiredAgreement(toBN(0));
-      (await mandateBook.getAgreementStatus(toBN(0))).should.be.bignumber.eq(toBN(A_EXPIRED));
+      await timeTravelTo(HALFDURATION1 + 100);
+      await mandateBook.setExpiredAgreement(agreementId);
+      (await mandateBook.getAgreementStatus(agreementId)).should.be.bignumber.eq(toBN(A_EXPIRED));
     });
     it('Mandate Agreement Manager or Mandate Investor should be able to settle the Mandate', async () => {
       let finalBal = toWei(35_000);
@@ -331,7 +331,8 @@ contract('MandateBook', (accounts) => {
       it("should increase manager balance for expected amount", async () => {
         committedCapital = toBN(agreement.__committedCapital);
         targetReturnRate = toBN(agreement.targetReturnRate);
-        expectedWithdrawnAmount = balance.sub(committedCapital.div(hundred).mul(hundred.add(targetReturnRate)));
+        expectedWithdrawnAmount = balance.sub(committedCapital.div(hundred).mul(hundred.add(targetReturnRate))).add(
+          depositCollateralAmount);
         managerBalance = await bPound.balanceOf(MANAGER1);
         assert.strictEqual(
           managerBalance.toString(10),
