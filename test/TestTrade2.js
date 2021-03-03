@@ -267,8 +267,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         amountOutMin = toBN(1),
         deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
 
-    agreementTradingDAIAmountBefore = await trade.agreementTradingTokenAmount(agreementId, tokenIn);
-    agreementTradingWETHAmountBefore = await trade.agreementTradingTokenAmount(agreementId, tokenOut);
+    agreementTradingDAIAmountBefore = await trade.countedBalance(agreementId, tokenIn);
+    agreementTradingWETHAmountBefore = await trade.countedBalance(agreementId, tokenOut);
     assert.strictEqual(
       (await DAI.balanceOf(trade.address)).toString(10),
       agreementTradingDAIAmountBefore.toString(10)
@@ -292,8 +292,8 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
     amountInFromEvent = receipt.logs[0].args.amountIn.toString(10);
     amountOutFromEvent = receipt.logs[0].args.amountOut.toString(10);
-    agreementTradingDAIAmount = await trade.agreementTradingTokenAmount(agreementId, tokenIn);
-    agreementTradingWETHAmount = await trade.agreementTradingTokenAmount(agreementId, tokenOut);
+    agreementTradingDAIAmount = await trade.countedBalance(agreementId, tokenIn);
+    agreementTradingWETHAmount = await trade.countedBalance(agreementId, tokenOut);
 
     assert.strictEqual(
       agreementTradingDAIAmount.toString(10),
@@ -374,4 +374,65 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
   //       uint256 deadline
   //   );
   // });
+  it("Bug use case", async () => {
+    commitAmount = toWei(30_000);
+    minExpectedBalance = toBN(1);
+    await DAI.transfer(INVESTOR1, commitAmount, { from: MINTER });
+    await DAI.approve(trade.address, commitAmount, { from: INVESTOR1 });
+    res = await trade.commitToAgreement(
+      agreementId,
+      commitAmount,
+      toBN(0),
+      { from: INVESTOR1 }
+    );
+    mandateId = res.logs[0].args.mandateID;
+    await trade.activateAgreement(agreementId, { from: MANAGER1 });
+    await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000);
+
+    // dai -> weth
+    daiTradeBalance = await trade.countedBalance(agreementId, DAI.address);
+    await trade.swapTokenToToken(
+      agreementId,
+      DAI.address,
+      WETH.address,
+      daiTradeBalance,
+      minExpectedBalance,
+      (await web3.eth.getBlock('latest')).timestamp + 10000,
+      {
+        from: MANAGER1
+      }
+    );
+
+    // weth -> dai
+    wethTradeBalance = await trade.countedBalance(agreementId, WETH.address);
+    await trade.swapTokenToToken(
+      agreementId,
+      WETH.address,
+      DAI.address,
+      wethTradeBalance,
+      minExpectedBalance,
+      (await web3.eth.getBlock('latest')).timestamp + 10000,
+      {
+        from: MANAGER1
+      }
+    );
+
+    // dai -> weth
+    daiTradeBalance = await trade.countedBalance(agreementId, DAI.address);
+    await trade.swapTokenToToken(
+      agreementId,
+      DAI.address,
+      WETH.address,
+      daiTradeBalance,
+      minExpectedBalance,
+      (await web3.eth.getBlock('latest')).timestamp + 10000,
+      {
+        from: MANAGER1
+      }
+    );
+
+    await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
+    await trade.setExpiredAgreement(agreementId);
+    await trade.sellAll(agreementId, { from: MANAGER1 });
+  });
 })

@@ -33,13 +33,8 @@ contract Trade is MandateBook, ITrade {
 
     uint256 timeFrame = 15 * 60 * 1 seconds;
 
-    mapping (uint256 => uint256) public countedTrades; // agreement id -> counter ticker
-
     // is was added to counted balance, token marked ad sold
     mapping(uint256 => mapping(address => bool)) tokenSold; // agreement id -> mapping
-
-    // by agreement id we store the balances of Assets (on the end of the agreement)
-    mapping(uint256 => mapping(address => uint256)) countedBalance; // agreement id -> mapping
 
     event Traded(
         uint256 agreementId,
@@ -152,24 +147,6 @@ contract Trade is MandateBook, ITrade {
         );
     }
 
-    // @dev sell asset with optimal price by agreement id
-    // @dev should be called before "sell", "sellAll"
-    function _countPossibleTradesDirection(uint256 agreementId) private {
-        TradeLog memory tradeLog;
-        uint256 agreementTradesCount = countTrades(agreementId);
-        for (uint256 i = countedTrades[agreementId]; i < agreementTradesCount; i++) {
-            tradeLog = trades[agreementId][i];
-            if (i == 0) {
-                countedBalance[agreementId][tradeLog.fromAsset] = _getInitBalance(agreementId);
-            }
-            countedBalance[agreementId][tradeLog.fromAsset] = countedBalance[agreementId][tradeLog.fromAsset].sub(
-                tradeLog.amountIn);
-            countedBalance[agreementId][tradeLog.toAsset] = countedBalance[agreementId][tradeLog.toAsset].add(
-                tradeLog.amountOut);
-        }
-        countedTrades[agreementId] = agreementTradesCount;
-    }
-
     // @dev get optimal amount in base asset, depend on agreement
     function getOutAmount(uint256 agreementId, address asset) public view returns (uint256 amountOut) {
         (uint256 reserveA, uint256 reserveB) = getLiquidity(
@@ -184,63 +161,46 @@ contract Trade is MandateBook, ITrade {
     }
 
     // @dev sell one asset with optimal price by agreement id // should work properly
-    function sell(uint256 agreementId, address asset) public onlyAfterActivePeriod(agreementId) {
-        _sellValidation(agreementId);
-
-        if (countedTrades[agreementId] == 0) {
-            _countPossibleTradesDirection(agreementId);
-        }
-
-        if (countTrades(agreementId) == 0) {
-            _balances[agreementId].counted = _getInitBalance(agreementId);
-            _agreementClosed[agreementId] = true;
-            return;
-        }
-
-        uint256 counterToClose;
-
-        TradeLog memory tradeLog;
-        for (uint256 i = 0; i < countTrades(agreementId); i++) {
-            tradeLog = trades[agreementId][i];
-            if (!tokenSold[agreementId][asset]) {
-                _sell(agreementId, asset);
-            }
-            if (tokenSold[agreementId][asset] == true) {
-                counterToClose++;
-            }
-        }
-
-        if (counterToClose == countTrades(agreementId)) {
-            _agreementClosed[agreementId] = true;
-        }
-    }
-
-    // @dev on agreement end, close specific number of positions
-    function sellAll(uint256 agreementId) external onlyAfterActivePeriod(agreementId) {
-        _sellValidation(agreementId);
-
-        if (countedTrades[agreementId] == 0) {
-            _countPossibleTradesDirection(agreementId);
-        }
-
+    function sell(
+        uint256 agreementId,
+        address asset
+    ) public onlyAfterActivePeriod(agreementId) canSell(agreementId) {
         uint256 openTradesCount = countTrades(agreementId);
-
-        TradeLog memory tradeLog;
-
+        address agreementBaseCoin = getBaseAsset(agreementId);
         if (openTradesCount == 0) {
             _balances[agreementId].counted = _getInitBalance(agreementId);
             _agreementClosed[agreementId] = true;
+            return;
+        }
+        require(asset != agreementBaseCoin, "It's not possible to sell baseCoin");
+        require(!tokenSold[agreementId][asset], "Asset already sold");
+        _sell(agreementId, asset);
+        uint256 counter;
+        for (uint256 i = 0; i < openTradesCount; i++) {
+            address tokenTo = trades[agreementId][i].toAsset;
+            if (tokenSold[agreementId][tokenTo]) counter++;
+        }
+        if (counter == openTradesCount) _agreementClosed[agreementId] = true;
+    }
 
+    // @dev on agreement end, close specific number of positions
+    function sellAll(
+        uint256 agreementId
+    ) external onlyAfterActivePeriod(agreementId) canSell(agreementId) {
+        uint256 openTradesCount = countTrades(agreementId);
+        if (openTradesCount == 0) {
+            _balances[agreementId].counted = _getInitBalance(agreementId);
+            _agreementClosed[agreementId] = true;
             return;
         }
 
+        TradeLog memory tradeLog;
+        address agreementBaseCoin = getBaseAsset(agreementId);
         for (uint256 i = 0; i < openTradesCount; i++) {
             tradeLog = trades[agreementId][i];
-            if (!tokenSold[agreementId][tradeLog.toAsset]) {
-                _sell(agreementId, tradeLog.toAsset);
-            }
+            address asset = tradeLog.toAsset;
+            if (asset != agreementBaseCoin && !tokenSold[agreementId][asset]) _sell(agreementId, asset);
         }
-
         _agreementClosed[agreementId] = true;
     }
 
@@ -248,22 +208,8 @@ contract Trade is MandateBook, ITrade {
         return (_IMB.getAgreement(agreementId)).__committedCapital;
     }
 
-    function _sellValidation(uint256 agreementId) internal view {
-        require(!_agreementClosed[agreementId], "Agreement was closed");
-        require(
-            _IMB.getAgreementStatus(agreementId) == AMandate.AgreementLifeCycle.EXPIRED,
-            "Agreement is not expired"
-        );
-    }
-
     function _sell(uint256 agreementId, address asset) private {
         uint256 currentTimestamp = block.timestamp;
-
-        if (countTrades(agreementId) == 0) {
-            _balances[agreementId].counted = _getInitBalance(agreementId);
-            return;
-        }
-
         uint256 amountIn = countedBalance[agreementId][asset];
         uint256 amountOut = getOutAmount(agreementId, asset);
 
@@ -297,7 +243,8 @@ contract Trade is MandateBook, ITrade {
     internal
     returns (uint256[] memory amounts)
     {
-        uint256 tokenInMaxValue = agreementTradingTokenAmount[agreementId][tokenIn];
+        require(tokenIn != tokenOut, "Swap tokenIn must be not equal to tokenOut");
+        uint256 tokenInMaxValue = countedBalance[agreementId][tokenIn];
         require(tokenInMaxValue >= amountIn, "Not enough tokenIn amount for this");
         IUniswapV2Pair pair = IUniswapV2Pair(_factory.getPair(tokenIn, tokenOut));
         require(address(pair) != address(0), "Pair not exist");
@@ -336,10 +283,8 @@ contract Trade is MandateBook, ITrade {
         uint256 lastAmount
     ) private {
         uint256 currentTimestamp = block.timestamp;
-        agreementTradingTokenAmount[agreementId][tokenIn] = agreementTradingTokenAmount[agreementId][tokenIn].sub(
-            firstAmount);
-        agreementTradingTokenAmount[agreementId][tokenOut] = agreementTradingTokenAmount[
-            agreementId][tokenOut].add(lastAmount);
+        countedBalance[agreementId][tokenIn] = countedBalance[agreementId][tokenIn].sub(firstAmount);
+        countedBalance[agreementId][tokenOut] = countedBalance[agreementId][tokenOut].add(lastAmount);
 
         trades[agreementId].push(
             TradeLog({
@@ -363,10 +308,17 @@ contract Trade is MandateBook, ITrade {
 
     modifier canTrade(uint256 agreementId) {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
-        require(countedTrades[agreementId] == 0, "Trades already calculated, use sell or sellAll");
         require(_a.manager == msg.sender, "Caller is not agreement manager");
         require(_a.status == AMandate.AgreementLifeCycle.ACTIVE, "Agreement status is not active");
+        _;
+    }
 
+    modifier canSell(uint256 agreementId) {
+        require(!_agreementClosed[agreementId], "Agreement was closed");
+        require(
+            _IMB.getAgreementStatus(agreementId) == AMandate.AgreementLifeCycle.EXPIRED,
+            "Agreement is not expired"
+        );
         _;
     }
 
