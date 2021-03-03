@@ -13,9 +13,9 @@ contract MockedTrade is Trade {
         uint256 agreementId,
         uint256 amount
     ) external onlyExistAgreement(agreementId) onlyPositiveAmount(amount) returns (bool) {
-        Agreement memory a = _agreements[agreementId];
-        IERC20(a.baseCoin).transferFrom(msg.sender, address(this), amount);
-        _balances[agreementId].counted = _balances[agreementId].counted.add(amount);
+        Agreement memory agreement = _agreements[agreementId];
+        IERC20(agreement.baseCoin).transferFrom(msg.sender, address(this), amount);
+        balances[agreementId] = balances[agreementId].add(amount);
         return true;
     }
 }
