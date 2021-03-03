@@ -210,12 +210,6 @@ contract Trade is MandateBook, ITrade {
 
     function _sell(uint256 agreementId, address asset) private {
         uint256 currentTimestamp = block.timestamp;
-
-        if (countTrades(agreementId) == 0) {
-            _balances[agreementId].counted = _getInitBalance(agreementId);
-            return;
-        }
-
         uint256 amountIn = countedBalance[agreementId][asset];
         uint256 amountOut = getOutAmount(agreementId, asset);
 
