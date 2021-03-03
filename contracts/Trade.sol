@@ -243,6 +243,7 @@ contract Trade is MandateBook, ITrade {
     internal
     returns (uint256[] memory amounts)
     {
+        require(tokenIn != tokenOut, "Swap tokenIn must be not equal to tokenOut");
         uint256 tokenInMaxValue = countedBalance[agreementId][tokenIn];
         require(tokenInMaxValue >= amountIn, "Not enough tokenIn amount for this");
         IUniswapV2Pair pair = IUniswapV2Pair(_factory.getPair(tokenIn, tokenOut));
