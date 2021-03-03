@@ -19,8 +19,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     ITrade private _trd = ITrade(address(this));
     Mandate[] internal _mandates;
     Agreement[] internal _agreements;
-    mapping(uint256 => mapping(address => uint256)) public agreementTradingTokenAmount;
-    //data structure designated to holding the info about the mandate
+    mapping(uint256 => mapping(address => uint256)) public countedBalance;
 
     //TODO to review
     modifier onlyAgreementManager(uint256 agreementId) {
@@ -522,7 +521,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         // @TODO: do not activate till open period is over
 
         agreement.status = AgreementLifeCycle.ACTIVE;
-        agreementTradingTokenAmount[agreementId][agreement.baseCoin] = agreement.__committedCapital;
+        countedBalance[agreementId][agreement.baseCoin] = agreement.__committedCapital;
 
         emit ActivateAgreement(agreementId, agreement.manager);
     }
