@@ -172,9 +172,11 @@ contract Trade is MandateBook, ITrade {
             _agreementClosed[agreementId] = true;
             return;
         }
-        require(asset != agreementBaseCoin, "It's not possible to sell baseCoin");
-        require(!tokenSold[agreementId][asset], "Asset already sold");
-        _sell(agreementId, asset);
+        if (!tokenSold[agreementId][agreementBaseCoin]) {
+            tokenSold[agreementId][agreementBaseCoin] = true;
+            _balances[agreementId].counted = countedBalance[agreementId][agreementBaseCoin];
+        }
+        if (!tokenSold[agreementId][asset]) _sell(agreementId, asset);
         uint256 counter;
         for (uint256 i = 0; i < openTradesCount; i++) {
             address tokenTo = trades[agreementId][i].toAsset;
@@ -188,18 +190,21 @@ contract Trade is MandateBook, ITrade {
         uint256 agreementId
     ) external onlyAfterActivePeriod(agreementId) canSell(agreementId) {
         uint256 openTradesCount = countTrades(agreementId);
+        address agreementBaseCoin = getBaseAsset(agreementId);
         if (openTradesCount == 0) {
             _balances[agreementId].counted = _getInitBalance(agreementId);
             _agreementClosed[agreementId] = true;
             return;
         }
-
+        if (!tokenSold[agreementId][agreementBaseCoin]) {
+            tokenSold[agreementId][agreementBaseCoin] = true;
+            _balances[agreementId].counted = countedBalance[agreementId][agreementBaseCoin];
+        }
         TradeLog memory tradeLog;
-        address agreementBaseCoin = getBaseAsset(agreementId);
         for (uint256 i = 0; i < openTradesCount; i++) {
             tradeLog = trades[agreementId][i];
             address asset = tradeLog.toAsset;
-            if (asset != agreementBaseCoin && !tokenSold[agreementId][asset]) _sell(agreementId, asset);
+            if (!tokenSold[agreementId][asset]) _sell(agreementId, asset);
         }
         _agreementClosed[agreementId] = true;
     }

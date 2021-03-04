@@ -181,12 +181,18 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     trade = await Trade.new(factory.address, router.address, { from: OWNER });
     mandateBook = trade;
 
+    targetReturnRate = 30;
+    maxCollateralRateIfAvailable = 80;
+    collatAmount = toWei(100_000);
+
+    await DAI.approve(mandateBook.address, collatAmount, { from: MANAGER1 });
+
     // 1) create agreement
     const receipt = await mandateBook.createAgreement(
         DAI.address, /* USDT testnet for example TODO change for own mock */
-        30, /* targetReturnRate */
-        80, /* maxCollateralRateIfAvailable */
-        toWei(100_000), /* collatAmount */
+        targetReturnRate, /* targetReturnRate */
+        maxCollateralRateIfAvailable, /* maxCollateralRateIfAvailable */
+        collatAmount, /* collatAmount */
         OPENPERIOD1, /* open period */
         DURATION1,  /* duration   */
         { from: MANAGER1 }
@@ -269,14 +275,6 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
     agreementTradingDAIAmountBefore = await trade.countedBalance(agreementId, tokenIn);
     agreementTradingWETHAmountBefore = await trade.countedBalance(agreementId, tokenOut);
-    assert.strictEqual(
-      (await DAI.balanceOf(trade.address)).toString(10),
-      agreementTradingDAIAmountBefore.toString(10)
-    );
-    assert.strictEqual(
-      (await WETH.balanceOf(trade.address)).toString(10),
-      agreementTradingWETHAmountBefore.toString(10)
-    );
 
     const receipt = await trade.swapTokenToToken(
         agreementId,
@@ -302,15 +300,6 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
     assert.strictEqual(
       agreementTradingWETHAmount.toString(10),
       agreementTradingWETHAmountBefore.add(toBN(amountOutFromEvent)).toString(10)
-    );
-
-    assert.strictEqual(
-      (await DAI.balanceOf(trade.address)).toString(10),
-      agreementTradingDAIAmount.toString(10)
-    );
-    assert.strictEqual(
-      (await WETH.balanceOf(trade.address)).toString(10),
-      agreementTradingWETHAmount.toString(10)
     );
 
     await expectEvent(
@@ -374,8 +363,12 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
   //       uint256 deadline
   //   );
   // });
-  it("Bug use case", async () => {
+  it("Use case scenario", async () => {
+    targetReturnRate = new BN(30);
+    maxCollateralRateIfAvailable = 80;
+    collatAmount = toWei(100_000);
     commitAmount = toWei(30_000);
+    expectedInvestorAmount = commitAmount.mul(new BN(100).add(targetReturnRate)).div(new BN(100));
     minExpectedBalance = toBN(1);
     await DAI.transfer(INVESTOR1, commitAmount, { from: MINTER });
     await DAI.approve(trade.address, commitAmount, { from: INVESTOR1 });
@@ -385,7 +378,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       toBN(0),
       { from: INVESTOR1 }
     );
-    mandateId = res.logs[0].args.mandateID;
+    mandateId = res.logs[0].args.mandateId;
     await trade.activateAgreement(agreementId, { from: MANAGER1 });
     await timeTravelTo(Number(OPENPERIOD1.toString()) - 1000);
 
@@ -423,7 +416,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
       agreementId,
       DAI.address,
       WETH.address,
-      daiTradeBalance,
+      daiTradeBalance.sub(new BN(500)),
       minExpectedBalance,
       (await web3.eth.getBlock('latest')).timestamp + 10000,
       {
@@ -433,6 +426,34 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
 
     await timeTravelTo(Number(OPENPERIOD1.toString()) + Number(DURATION1.toString()) + 1000);
     await trade.setExpiredAgreement(agreementId);
+
+    daiCountedBalance = await trade.countedBalance(agreementId, DAI.address);
+    wethCountedBalance = await trade.countedBalance(agreementId, WETH.address);
+    assert.ok(daiCountedBalance.gt(new BN(0)));
+    assert.ok(wethCountedBalance.gt(new BN(0)));
+
     await trade.sellAll(agreementId, { from: MANAGER1 });
+
+    balance = await trade.balances(agreementId);
+    daiCountedBalance = await trade.countedBalance(agreementId, DAI.address);
+    wethCountedBalance = await trade.countedBalance(agreementId, WETH.address);
+    assert.strictEqual(balance.toString(10), daiCountedBalance.toString(10));
+    assert.ok(wethCountedBalance.toString(10) == '0');
+
+    targetReturnAmount = commitAmount.mul(new BN(100).add(targetReturnRate)).div(new BN(100));
+    finalAgreementTradeBalance = balance.add(collatAmount);
+    expectedManagerAmount = targetReturnAmount.lt(finalAgreementTradeBalance)
+      ? finalAgreementTradeBalance.sub(targetReturnAmount)
+      : 0;
+    withdrawManagerCollateralResult = await trade.withdrawManagerCollateral(agreementId, { from: MANAGER1 });
+    assert.strictEqual(
+      withdrawManagerCollateralResult.logs[0].args.amount.toString(10),
+      expectedManagerAmount.toString(10)
+    );
+    settleMandateResult = await trade.settleMandate(mandateId, { from : INVESTOR1 });
+    assert.strictEqual(
+      settleMandateResult.logs[0].args.mandateFinalCorrectedBalance.toString(10),
+      targetReturnAmount.toString(10)
+    )
   });
 })
