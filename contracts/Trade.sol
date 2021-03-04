@@ -172,11 +172,13 @@ contract Trade is MandateBook, ITrade {
             _agreementClosed[agreementId] = true;
             return;
         }
+        require(asset != agreementBaseCoin, "It's not possible to sell baseCoin");
+        require(!tokenSold[agreementId][asset], "Asset already sold");
         if (!tokenSold[agreementId][agreementBaseCoin]) {
             tokenSold[agreementId][agreementBaseCoin] = true;
             _balances[agreementId].counted = countedBalance[agreementId][agreementBaseCoin];
         }
-        if (!tokenSold[agreementId][asset]) _sell(agreementId, asset);
+        _sell(agreementId, asset);
         uint256 counter;
         for (uint256 i = 0; i < openTradesCount; i++) {
             address tokenTo = trades[agreementId][i].toAsset;
