@@ -178,7 +178,8 @@ contract Trade is MandateBook, ITrade {
             tokenSold[agreementId][agreementBaseCoin] = true;
             _balances[agreementId].counted = countedBalance[agreementId][agreementBaseCoin];
         }
-        _sell(agreementId, asset);
+        if (countedBalance[agreementId][asset] == 0) tokenSold[agreementId][asset] = true;
+        else _sell(agreementId, asset);
         uint256 counter;
         for (uint256 i = 0; i < openTradesCount; i++) {
             address tokenTo = trades[agreementId][i].toAsset;
@@ -206,7 +207,10 @@ contract Trade is MandateBook, ITrade {
         for (uint256 i = 0; i < openTradesCount; i++) {
             tradeLog = trades[agreementId][i];
             address asset = tradeLog.toAsset;
-            if (!tokenSold[agreementId][asset]) _sell(agreementId, asset);
+            if (!tokenSold[agreementId][asset]) {
+                if (countedBalance[agreementId][asset] == 0) tokenSold[agreementId][asset] = true;
+                else _sell(agreementId, asset);
+            }
         }
         _agreementClosed[agreementId] = true;
     }
