@@ -222,7 +222,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
             stat_actualReturnRate: 0,
             stat_remainingCollateral: 0,
-            stat_actualDuration: 0
+            stat_actualDuration: 0,
+
+            isDeleted: false
         }));
 
         uint256 agreementId = _agreements.length.sub(1);
@@ -443,6 +445,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //execute
         Agreement storage agreement = _agreements[agreementId];
+        _assertAgreementNotDeleted(agreement);
         require(agreement.status == AgreementLifeCycle.POPULATED);
 
         agreement.status = AgreementLifeCycle.PUBLISHED;
@@ -470,6 +473,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function unpublishAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
         // @TODO implement
         Agreement storage agreement = _agreements[agreementId];
+        _assertAgreementNotDeleted(agreement);
         require(0 == agreement.__committedMandates, "Agreement has committed mandates, use cancelAgreement");
         agreement.status = AgreementLifeCycle.POPULATED;
         emit UnpublishAgreement(agreementId, agreement.manager);
@@ -528,7 +532,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
     function setExpiredAgreement(uint256 agreementId) public {
         Agreement storage agreement = _agreements[agreementId];
-
+        _assertAgreementNotDeleted(agreement);
         require(agreement.status <= AgreementLifeCycle.ACTIVE, "Agreement is already expired");
 
         require(
@@ -541,6 +545,18 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         agreement.status = AgreementLifeCycle.EXPIRED;
 
         emit SetExpiredAgreement(agreementId, agreement.manager);
+    }
+
+    function _assertAgreementNotDeleted(Agreement storage agreement) private view {
+        require(!agreement.isDeleted, "Agreement already deleted");
+    }
+
+    function deleteAgreement(uint256 agreementId) public onlyExistAgreement(agreementId) {
+        Agreement storage agreement = _agreements[agreementId];
+        require(agreement.status < AgreementLifeCycle.PUBLISHED, "Agreement should be less than PUBLISHED status");
+        _assertAgreementNotDeleted(agreement);
+        agreement.isDeleted = true;
+        emit DeleteAgreement(agreementId);
     }
 
     function settleMandate(uint256 mandateId) public onlyMandateOrAgreementOwner(mandateId) nonReentrant {
@@ -618,6 +634,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         address indexed manager,
         uint256 amount
     );
+    event DeleteAgreement(uint256 agreementId);
 
     event WaitForMoreCollateral(uint256 indexed agreementId, uint256 outstanding);
 
