@@ -260,6 +260,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
 
         //validate
         require(agreement.status <= AgreementLifeCycle.PUBLISHED, "Too late to change anything at AgreementLifeCycle.PUBLISHED");
+        _assertAgreementNotDeleted(agreement);
 
         //execute
         // @TODO disallow if collateral already deposited
@@ -294,8 +295,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     function depositCollateral(uint256 agreementId, uint256 amount) external /* payable */ override onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) returns (uint256 finalAgreementCollateralBalance){
-        require(_agreements.length > agreementId);
         Agreement storage agreement = _agreements[agreementId];
+        _assertAgreementNotDeleted(agreement);
         require(address(0) != agreement.baseCoin);
         //if(msg.value > 0) processEthers();
         uint256 transferred = _transferDepositCollateral(agreementId, amount);
@@ -473,7 +474,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     function unpublishAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
         // @TODO implement
         Agreement storage agreement = _agreements[agreementId];
-        _assertAgreementNotDeleted(agreement);
         require(0 == agreement.__committedMandates, "Agreement has committed mandates, use cancelAgreement");
         agreement.status = AgreementLifeCycle.POPULATED;
         emit UnpublishAgreement(agreementId, agreement.manager);
@@ -551,10 +551,11 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(!agreement.isDeleted, "Agreement already deleted");
     }
 
-    function deleteAgreement(uint256 agreementId) public onlyExistAgreement(agreementId) {
+    function deleteAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
         Agreement storage agreement = _agreements[agreementId];
-        require(agreement.status < AgreementLifeCycle.PUBLISHED, "Agreement should be less than PUBLISHED status");
         _assertAgreementNotDeleted(agreement);
+        require(agreement.status < AgreementLifeCycle.PUBLISHED, "Agreement status should be less than PUBLISHED");
+        if (agreement.__collatAmount > 0) _transferWithdrawCollateral(agreementId, agreement.__collatAmount);
         agreement.isDeleted = true;
         emit DeleteAgreement(agreementId);
     }
