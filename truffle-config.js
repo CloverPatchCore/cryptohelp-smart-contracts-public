@@ -23,8 +23,13 @@ require('dotenv').config()
 
 const {
   MNEMONIC_PHRASE,
-  INFURA_KEY
+  INFURA_KEY,
+  ETHERSCAN_KEY,
+  BSCSCAN_KEY,
+  GAS_PRICE
 } = process.env;
+
+const gasPrice = Number(GAS_PRICE) * 10 ** 9;
 
 module.exports = {
   /**
@@ -38,42 +43,42 @@ module.exports = {
    */
 
   networks: {
-    // Useful for testing. The `development` name is special - truffle uses it by default
-    // if it's defined here and no other network is specified at the command line.
-    // You should run a client (like ganache-cli, geth or parity) in a separate terminal
-    // tab if you use this network and you must also set the `host`, `port` and `network_id`
-    // options below to some value.
-    //
     development: {
-      host: "127.0.0.1",     // Localhost (default: none)
-      port: 8545,            // Standard Ethereum port (default: none)
-      network_id: "*",       // Any network (default: none)
+      host: "127.0.0.1",
+      network_id: "*",
+      port: 8545,
+      confirmations: 0,
+      skipDryRun: true,
+      gasPrice,
     },
-    // Another network with more advanced options...
-    // advanced: {
-    // port: 8777,             // Custom port
-    // network_id: 1342,       // Custom network
-    // gas: 8500000,           // Gas sent with each transaction (default: ~6700000)
-    // gasPrice: 20000000000,  // 20 gwei (in wei) (default: 100 gwei)
-    // from: <address>,        // Account to send txs from (default: accounts[0])
-    // websockets: true        // Enable EventEmitter interface for web3 (default: false)
-    // },
-    // Useful for deploying to a public network.
-    // NB: It's important to wrap the provider as a function.
     rinkeby: {
       provider: () => new HDWalletProvider(MNEMONIC_PHRASE, `https://rinkeby.infura.io/v3/${INFURA_KEY}`),
-      network_id: 4,       // id
-      gas: 8000000,        // Ropsten has a lower block limit than mainnet
-      confirmations: 1,    // # of confs to wait between deployments. (default: 0)
-      timeoutBlocks: 1,  // # of blocks before a deployment times out  (minimum/default: 50)
-      skipDryRun: true     // Skip dry run before migrations? (default: false for public nets )
+      network_id: 4,
+      confirmations: 1,
+      skipDryRun: true,
+      gasPrice,
     },
-    // Useful for private networks
-    // private: {
-    // provider: () => new HDWalletProvider(mnemonic, `https://network.io`),
-    // network_id: 2111,   // This network is yours, in the cloud.
-    // production: true    // Treats this network as if it was a public net. (default: false)
-    // }
+    mainnet: {
+      provider: () => new HDWalletProvider(MNEMONIC_PHRASE, `https://mainnet.infura.io/v3/${INFURA_KEY}`),
+      network_id: 1,
+      confirmations: 3,
+      skipDryRun: true,
+      gasPrice
+    },
+    bscTestnet: {
+      provider: () => new HDWalletProvider(MNEMONIC_PHRASE, `https://data-seed-prebsc-1-s1.binance.org:8545`),
+      network_id: 97,
+      confirmations: 1,
+      skipDryRun: true,
+      gasPrice
+    },
+    bscMainnet: {
+      provider: () => new HDWalletProvider(MNEMONIC_PHRASE, `https://bsc-dataseed1.binance.org`),
+      network_id: 56,
+      confirmations: 3,
+      skipDryRun: true,
+      gasPrice
+    }
   },
 
   // Set default mocha options here, use special reporters etc.
@@ -95,5 +100,6 @@ module.exports = {
       }
     },
   },
-  plugins: ["solidity-coverage"]
+  plugins: ["solidity-coverage", "truffle-plugin-verify"],
+  api_keys: { etherscan: ETHERSCAN_KEY, bscscan: BSCSCAN_KEY }
 };
