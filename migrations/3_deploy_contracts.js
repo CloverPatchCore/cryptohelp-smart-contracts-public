@@ -31,35 +31,36 @@ module.exports = async function (deployer, network, accounts) {
   if ("bscMainnet" === network) {
     factory = '0xBCfCcbde45cE874adCB698cC183deBcF17952812';
     router = '0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F';
-  } else {
-    const amount = toWei('1000000000');
+  } else {;
     const liquidityAmount = toWei('100000');
-    await deployer.deploy(MockERC20, 'WETH', 'WETH', amount, { from: OWNER });
-    await deployer.deploy(FirstTradingToken, 'FirstToken', 'FT', amount, { from: OWNER });
-    await deployer.deploy(SecondTradingToken, 'SecondToken', 'ST', amount, { from: OWNER });
-    await deployer.deploy(UniswapV2Factory, OWNER, { from: OWNER });
     const WETH = await MockERC20.deployed();
     const firstToken = await FirstTradingToken.deployed();
     const secondToken = await SecondTradingToken.deployed();
+    await deployer.deploy(UniswapV2Factory, OWNER, { from: OWNER });
     const factoryInstance = await UniswapV2Factory.deployed();
     await deployer.deploy(UniswapV2Router02, factoryInstance.address, WETH.address, { from: OWNER });
     const routerInstance = await UniswapV2Router02.deployed();
-    const path = [(firstToken.address), (secondToken.address)];
-    await factoryInstance.createPair(...path, { from: OWNER });
-    await firstToken.approve(routerInstance.address, liquidityAmount, { from: OWNER });
-    await secondToken.approve(routerInstance.address, liquidityAmount, { from: OWNER });
-    const deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
-    await routerInstance.addLiquidity(
-      firstToken.address,
-      secondToken.address,
-      liquidityAmount,
-      liquidityAmount,
-      '0',
-      '0',
-      OWNER,
-      deadline,
-      { from: OWNER }
-    );
+    const paths = [
+      [(WETH), (firstToken)],
+      [(WETH), (secondToken)],
+      [(firstToken), (secondToken)]
+    ];
+    for (const path of paths) {
+      await factoryInstance.createPair(...path.map(token => token.address), { from: OWNER });
+      for (const token of path) await token.approve(routerInstance.address, liquidityAmount, { from: OWNER });
+      const deadline = (await web3.eth.getBlock('latest')).timestamp + 10000;
+      await routerInstance.addLiquidity(
+        path[0].address,
+        path[1].address,
+        liquidityAmount,
+        liquidityAmount,
+        '1',
+        '1',
+        OWNER,
+        deadline,
+        { from: OWNER }
+      );
+    }
     factory = factoryInstance.address;
     router = routerInstance.address;
     if (["development", "soliditycoverage"].includes(network)) {
