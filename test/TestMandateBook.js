@@ -477,4 +477,110 @@ contract('MandateBook', (accounts) => {
       });
     });
   });
+  describe("Method deleteAgreement(uint256 agreementId)", () => {
+    before(async () => {
+      mockedTrade = await MockedTrade.deployed();
+      depositCollateralAmount = toWei(200_000);
+      agreementIncome = toWei(300_000);
+      commitAmount = toWei(70_000);
+      targetReturnRate = 30;
+      maxCollateralRateIfAvailable = 80;
+      minCollatRateRequirement = 0;
+
+      await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+      await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+      tx = await mockedTrade.createAgreement(
+        bPound.address,
+        targetReturnRate,
+        maxCollateralRateIfAvailable,
+        depositCollateralAmount,
+        toBN(OPENPERIOD1),
+        toBN(DURATION1),
+        { from : MANAGER1 }
+      );
+      agreementId = tx.receipt.logs[0].args[0];
+      balanceBefore = await bPound.balanceOf(MANAGER1);
+      contractBalanceBefore = await bPound.balanceOf(mockedTrade.address);
+      contractCollateral = await mockedTrade.getAgreement(agreementId).then(agreement => new BN(agreement.__collatAmount));
+    });
+    describe("When agreement does not exist", () => {
+      testReject(
+        () => mockedTrade.deleteAgreement(agreementId + 1, { from: MANAGER1 }),
+        "Agreement not exist"
+      );
+    });
+    describe("When caller is not agreement manager", () => {
+      testReject(
+        () => mockedTrade.deleteAgreement(agreementId, { from: MANAGER2 }),
+        "Only appointed Fund Manager"
+      );
+    });
+    describe("When agreement status is published", () => {
+      before(() => mockedTrade.publishAgreement(agreementId, { from: MANAGER1 }));
+      testReject(
+        () => mockedTrade.deleteAgreement(agreementId, { from: MANAGER1 }),
+        "Agreement status should be less than PUBLISHED"
+      );
+    });
+    describe("When agreement status is populated", () => {
+      before(() => mockedTrade.unpublishAgreement(agreementId, { from: MANAGER1 }));
+      it("should success", async () => {
+        result = await mockedTrade.deleteAgreement(agreementId, { from: MANAGER1 });
+        agreement = await mockedTrade.getAgreement(agreementId);
+      });
+      it("should update agreement 'isDeleted' field to expected", () => assert.strictEqual(agreement.isDeleted, true));
+      it("should decrease agreement collateral amount", () => assert.strictEqual(new BN(agreement.__collatAmount).toString(10), "0"));
+      it("should increase agreement manager balance to expected", async () => {
+        const balance = await bPound.balanceOf(MANAGER1);
+        assert.strictEqual(
+          balance.toString(10),
+          balanceBefore.add(contractCollateral).toString(10)
+        );
+      });
+      it("should decrease contract balance to expected", async () => {
+        const contractBalance = await bPound.balanceOf(mockedTrade.address);
+        assert.strictEqual(
+          contractBalance.toString(10),
+          contractBalanceBefore.sub(contractCollateral).toString(10)
+        );
+      });
+      it("should emit event with name equal to expected", () => assert.strictEqual(result.logs[0].event, "DeleteAgreement"));
+      it(
+        "should emit event with 'agreementId' field equal to expected",
+        () => assert.strictEqual(result.logs[0].args[0].toString(10), agreementId.toString(10))
+      );
+    });
+    describe("When agreement already deleted", () => {
+      describe("When try to delete agreement", () => {
+        testReject(
+          () => mockedTrade.deleteAgreement(agreementId, { from: MANAGER1 }),
+          "Agreement already deleted"
+        );
+      });
+      describe("When try to populate agreement", () => {
+        testReject(
+          () => mockedTrade.populateAgreement(agreementId, agreement.baseCoin, 1, 1, 1, 1, 1, { from: MANAGER1 }),
+          "Agreement already deleted"
+        );
+      });
+      describe("When try to deposit collateral", () => {
+        testReject(
+          () => mockedTrade.depositCollateral(agreementId, 50, { from: MANAGER1 }),
+          "Agreement already deleted"
+        );
+      });
+      describe("When try to publish agreement", () => {
+        testReject(
+          () => mockedTrade.publishAgreement(agreementId, { from: MANAGER1 }),
+          "Agreement already deleted"
+        );
+      });
+      describe("When try to publish agreement", () => {
+        testReject(
+          () => mockedTrade.setExpiredAgreement(agreementId, { from: MANAGER1 }),
+          "Agreement already deleted"
+        );
+      });
+    });
+  });
 })
