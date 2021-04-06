@@ -21,28 +21,6 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     Agreement[] internal _agreements;
     mapping(uint256 => mapping(address => uint256)) public countedBalance;
 
-    //TODO to review
-    modifier onlyAgreementManager(uint256 agreementId) {
-        require(msg.sender == _agreements[agreementId].manager, "Only appointed Fund Manager");
-        _;
-    }
-
-    //this checks if the sender is actually an investor on the indicated dealId
-    modifier onlyMandateInvestor(uint256 mandateId) {
-        require(msg.sender == _mandates[mandateId].investor, "Only Mandate Investor");
-        _;
-    }
-
-    modifier onlyMandateOrAgreementOwner(uint256 mandateId) {
-        address sender = msg.sender;
-        require(
-            sender == _mandates[mandateId].investor ||
-            sender == _agreements[_mandates[mandateId].agreement].manager,
-            "Only Investor or Manager"
-        );
-        _;
-    }
-
     modifier onlyExistAgreement(uint256 agreementId) {
         require(_agreements.length > agreementId, "Agreement not exist");
         _;
@@ -255,9 +233,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 collatAmount,
         uint256 activePeriod,
         uint256 openPeriod
-    ) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
+    ) external onlyExistAgreement(agreementId) {
         Agreement storage agreement = _agreements[agreementId];
-
+        _assertIsAgreementManager(agreement);
         //validate
         require(agreement.status <= AgreementLifeCycle.PUBLISHED, "Too late to change anything at AgreementLifeCycle.PUBLISHED");
         _assertAgreementNotDeleted(agreement);
@@ -294,8 +272,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         //return
     }
 
-    function depositCollateral(uint256 agreementId, uint256 amount) external /* payable */ override onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) returns (uint256 finalAgreementCollateralBalance){
+    function depositCollateral(uint256 agreementId, uint256 amount) external /* payable */ override onlyExistAgreement(agreementId) returns (uint256 finalAgreementCollateralBalance){
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         _assertAgreementNotDeleted(agreement);
         require(address(0) != agreement.baseCoin);
         //if(msg.value > 0) processEthers();
@@ -320,8 +299,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         agreement.__collatAmount = agreement.__collatAmount.sub(amount);
     }
 
-    function withdrawCollateral(uint256 agreementId, uint256 amount) external override onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) onlyPositiveAmount(amount) {
+    function withdrawCollateral(uint256 agreementId, uint256 amount) external override onlyExistAgreement(agreementId)  onlyPositiveAmount(amount) {
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         require(agreement.status < AgreementLifeCycle.PUBLISHED, "Can't withdraw collateral at this stage");
         require(agreement.__freeCollatAmount >= amount, "Not enough free collateral amount");
         _transferWithdrawCollateral(agreementId, amount);
@@ -405,9 +385,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
 
-    function withdrawCapital(uint256 mandateId, uint256 amount) external onlyExistMandate(mandateId) onlyMandateInvestor(mandateId) override returns (uint256 transferred) {
+    function withdrawCapital(uint256 mandateId, uint256 amount) external onlyExistMandate(mandateId) override returns (uint256 transferred) {
         // @TODO: implement
         Mandate storage mandate = _mandates[mandateId];
+        require(msg.sender == mandate.investor, "Only Mandate Investor");
         Agreement storage agreement = _agreements[mandate.agreement];
         // withdraw capital
         require(agreement.status < AgreementLifeCycle.ACTIVE, "Can't withdraw from agreement at this stage");
@@ -428,11 +409,12 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         mandate.status = MandateLifeCycle.CANCELED;
     }
 
-    function cancelMandate(uint256 mandateId) external override onlyExistMandate(mandateId) onlyMandateOrAgreementOwner(mandateId) {
+    function cancelMandate(uint256 mandateId) external override onlyExistMandate(mandateId) {
         // @TODO validations
 
         Mandate storage mandate = _mandates[mandateId];
         Agreement storage agreement = _agreements[mandate.agreement];
+        _assertIsMandateOrAgreementOwner(agreement, mandate);
         // actions
         uint256 transferred = _transferWithdrawCapital(agreement, mandate, mandate.__committedCapital);
         emit WithdrawCapital(mandate.agreement, agreement.manager, mandateId, mandate.investor, transferred);
@@ -441,11 +423,12 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit CancelMandate(mandate.agreement, agreement.manager, mandateId, mandate.investor);
     }
 
-    function publishAgreement(uint256 agreementId)  external onlyAgreementManager(agreementId) {
+    function publishAgreement(uint256 agreementId) external {
         //validate
 
         //execute
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         _assertAgreementNotDeleted(agreement);
         require(agreement.status == AgreementLifeCycle.POPULATED);
 
@@ -467,13 +450,14 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
     }
 
     // @TODO
-    function cancelAgreement(uint256 agreementId) external view onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
+    function cancelAgreement(uint256 agreementId) external view onlyExistAgreement(agreementId) {
         revert("to be implemented later");
     }
 
-    function unpublishAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
+    function unpublishAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) {
         // @TODO implement
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         require(0 == agreement.__committedMandates, "Agreement has committed mandates, use cancelAgreement");
         agreement.status = AgreementLifeCycle.POPULATED;
         emit UnpublishAgreement(agreementId, agreement.manager);
@@ -518,8 +502,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         return _agreements[agreementId].__committedCapital;
     }
 
-    function activateAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
+    function activateAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) {
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         require(AgreementLifeCycle.PUBLISHED == agreement.status, 'Agreement should be in PUBLISHED status');
 
         // @TODO: do not activate till open period is over
@@ -551,8 +536,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         require(!agreement.isDeleted, "Agreement already deleted");
     }
 
-    function deleteAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) {
+    function deleteAgreement(uint256 agreementId) external onlyExistAgreement(agreementId) {
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         _assertAgreementNotDeleted(agreement);
         require(agreement.status < AgreementLifeCycle.PUBLISHED, "Agreement status should be less than PUBLISHED");
         if (agreement.__collatAmount > 0) _transferWithdrawCollateral(agreementId, agreement.__collatAmount);
@@ -560,9 +546,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         emit DeleteAgreement(agreementId);
     }
 
-    function settleMandate(uint256 mandateId) public onlyMandateOrAgreementOwner(mandateId) nonReentrant {
+    function settleMandate(uint256 mandateId) public nonReentrant {
         Mandate storage mandate = _mandates[mandateId];
         Agreement storage agreement = _agreements[mandate.agreement];
+        _assertIsMandateOrAgreementOwner(agreement, mandate);
         require(AgreementLifeCycle.EXPIRED <= agreement.status, "Agreement should be in EXPIRED status");
         require(MandateLifeCycle.SETTLED > mandate.status, "Mandate was already settled");
 
@@ -608,8 +595,9 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         );
     }
 
-    function withdrawManagerCollateral(uint256 agreementId) external onlyExistAgreement(agreementId) onlyAgreementManager(agreementId) returns (bool) {
+    function withdrawManagerCollateral(uint256 agreementId) external onlyExistAgreement(agreementId) returns (bool) {
         Agreement storage agreement = _agreements[agreementId];
+        _assertIsAgreementManager(agreement);
         require(agreement.status == AgreementLifeCycle.EXPIRED, "Agreement should be in EXPIRED status");
         uint256 finalAgreementTradeBalance = _trd.balances(agreementId).add(agreement.__collatAmount);
         uint256 targetReturnAmount = agreement.__committedCapital.mul(agreement.targetReturnRate.add(100)).div(100);
@@ -623,6 +611,15 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             emit ManagerCollateralWithdrawn(agreementId, receiver, amount);
         }
         return true;
+    }
+
+    function _assertIsAgreementManager(Agreement storage agreement) private view {
+        require(msg.sender == agreement.manager, "Only appointed Fund Manager");
+    }
+
+    function _assertIsMandateOrAgreementOwner(Agreement storage agreement, Mandate storage mandate) private view {
+        address sender = msg.sender;
+        require(sender == mandate.investor || sender == agreement.manager, "Only Investor or Manager");
     }
     
     //#############################
