@@ -5,31 +5,44 @@ import "./AMandate.sol";
 
 interface IMandateBook {
 
-    function getMandate(uint256 mandateId) external view returns (AMandate.Mandate memory mandate);
-    function getMandateStatus(uint256 mandateId) external view returns (AMandate.MandateLifeCycle);
-    
+    function getMandate(
+        uint256 mandateId
+    ) external view returns (AMandate.Mandate memory mandate);
 
-/*     function acceptMandate(uint id) external payable; // accepts collateral from fund manager
+    function getMandateStatus(
+        uint256 mandateId
+    ) external view returns (AMandate.MandateLifeCycle);
 
+    function cancelMandate(
+        uint256 mandateId
+    ) external;
 
-    function startMandate(uint id) external payable; // accepts collateral from fund manager
+    function depositCapital(
+        uint256 mandateId,
+        uint256 amount,
+        uint256 minCollatRateRequirement
+    ) external returns (uint256 finalMandateCapitalBalance);
 
-    function closeMandate(uint id) external;
+    function withdrawCapital(
+        uint256 mandateId,
+        uint256 amount
+    ) external returns (uint256 finalMandateCapitalBalance);
 
-    function createMandate(address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable returns(uint256 id); //accepts investment funds from investor
+    function getAgreement(
+        uint256 agreementId
+    ) external view returns (AMandate.Agreement memory agreement);
 
-    function populateMandate(uint id, address targetManager, uint256 duration, uint16 takeProfit, uint16 stopLoss) external payable; //accepts investment funds from investor
+    function getAgreementStatus(
+        uint256 agreementId
+    ) external view returns (AMandate.AgreementLifeCycle status);
 
-    function submitMandate(uint id) external;
- */
-    function cancelMandate(uint256 mandateId) external;
-    
-    function depositCapital(uint256 mandateId, uint256 amount, uint16 minCollatRateRequirement) external /* payable */ returns (uint256 finalMandateCapitalBalance);
-    function withdrawCapital(uint256 mandateId, uint256 amount) external /* payable */ returns (uint256 finalMandateCapitalBalance);
+    function depositCollateral(
+        uint256 agreementId,
+        uint256 amount
+    ) external returns (uint256 finalAgreementCollateralBalance);
 
-    function getAgreement(uint256 agreementId) external view returns (AMandate.Agreement memory agreement);
-    function getAgreementStatus(uint256 agreementId) external view returns (AMandate.AgreementLifeCycle status);
-
-    function depositCollateral(uint256 agreementId, uint256 amount) external /* payable */ returns (uint256 finalAgreementCollateralBalance);
-    function withdrawCollateral(uint256 agreementId, uint256 amount) external /* payable */;
+    function withdrawCollateral(
+        uint256 agreementId,
+        uint256 amount
+    ) external;
 }

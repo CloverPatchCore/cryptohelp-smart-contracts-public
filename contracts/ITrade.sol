@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./IMandateBook.sol";
 
 interface ITrade is IMandateBook {
+
     struct TradeLog {
         address fromAsset;
         address toAsset;
@@ -18,15 +19,26 @@ interface ITrade is IMandateBook {
 
     function factory() external view returns (address);
 
-    function balances(uint256 agreementId) external view returns (uint256 counted);
+    function balances(
+        uint256 agreementId
+    ) external view returns (uint256 counted);
 
-    function agreementClosed(uint256 agreementId) external view returns (bool);
+    function agreementClosed(
+        uint256 agreementId
+    ) external view returns (bool);
 
-    function getFinalBalance(uint256 agreementId) external view returns (uint256);
+    function getFinalBalance(
+        uint256 agreementId
+    ) external view returns (uint256);
 
-    function countTrades(uint256 agreementId) external view returns (uint256);
+    function countTrades(
+        uint256 agreementId
+    ) external view returns (uint256);
 
-    function getTrade(uint256 agreementId, uint256 index) external view returns (TradeLog memory tradeLog);
+    function getTrade(
+        uint256 agreementId,
+        uint256 index
+    ) external view returns (TradeLog memory tradeLog);
 
     function swapTokenToToken(
         uint256 agreementId,
@@ -37,9 +49,17 @@ interface ITrade is IMandateBook {
         uint256 deadline
     ) external;
 
-    function countProfit(uint256 agreementId) external view returns (uint256 amount, bool positive);
+    function countProfit(
+        uint256 agreementId
+    ) external view returns (uint256 amount, bool positive);
 
-    function getPrice(address tokenA, address tokenB) external view returns(uint256, uint256);
+    function getPrice(
+        address tokenA,
+        address tokenB
+    ) external view returns(uint256, uint256);
 
-    function getLiquidity(address tokenA, address tokenB) external view returns(uint256, uint256);
+    function getLiquidity(
+        address tokenA,
+        address tokenB
+    ) external view returns(uint256, uint256);
 }

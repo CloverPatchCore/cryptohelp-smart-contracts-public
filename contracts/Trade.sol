@@ -12,7 +12,6 @@ import "@uniswap/lib/contracts/libraries/TransferHelper.sol";
 import "./IMandateBook.sol";
 import "./MandateBook.sol";
 
-//import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Trade is MandateBook, ITrade {
     using SafeMath for uint256;
@@ -34,7 +33,7 @@ contract Trade is MandateBook, ITrade {
     uint256 timeFrame = 15 * 60 * 1 seconds;
 
     // is was added to counted balance, token marked ad sold
-    mapping(uint256 => mapping(address => bool)) tokenSold; // agreement id -> mapping
+    mapping(uint256 => mapping(address => bool)) tokenSold;
 
     event Traded(
         uint256 agreementId,
@@ -45,8 +44,10 @@ contract Trade is MandateBook, ITrade {
         uint256 timestamp
     );
 
-    // params uniV2Factory, uniV2Router
-    constructor(address factoryV2, address routerContract) public {
+    constructor(
+        address factoryV2,
+        address routerContract
+    ) public {
         _factory = IUniswapV2Factory(factoryV2);
         _router = IUniswapV2Router02(routerContract);
     }
@@ -73,7 +74,9 @@ contract Trade is MandateBook, ITrade {
 
     // return profit by agreement, depend on first known amount
     // returns absolute value gain or loss (positive is indicator)
-    function countProfit(uint256 agreementId) public override view returns (uint256 amount, bool positive) {
+    function countProfit(
+        uint256 agreementId
+    ) public override view returns (uint256 amount, bool positive) {
         uint256 agreementBalance = _balances[agreementId].counted;
         uint256 agreementInitBalance = _getInitBalance(agreementId);
         if (agreementInitBalance < agreementBalance) {
@@ -85,15 +88,19 @@ contract Trade is MandateBook, ITrade {
         }
     }
 
-    // @dev tokenA, tokenB
-    function getPrice(address tokenA, address tokenB) public override view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
+    function getPrice(
+        address tokenA,
+        address tokenB
+    ) public override view returns (uint256 price0Cumulative, uint256 price1Cumulative) {
         IUniswapV2Pair _pair = IUniswapV2Pair(_factory.getPair(tokenA, tokenB));
         (price0Cumulative, price1Cumulative,) = UniswapV2OracleLibrary.currentCumulativePrices(address(_pair));
         return (price0Cumulative, price1Cumulative);
     }
 
-    // @dev get liquidity for token A, B.
-    function getLiquidity(address tokenA, address tokenB) public override view returns(uint256, uint256) {
+    function getLiquidity(
+        address tokenA,
+        address tokenB
+    ) public override view returns(uint256, uint256) {
         IUniswapV2Pair _pair = IUniswapV2Pair(_factory.getPair(tokenA, tokenB));
         uint256 reserve0;
         uint256 reserve1;
@@ -101,7 +108,6 @@ contract Trade is MandateBook, ITrade {
         if (tokenA == _pair.token1()) {
             (reserve0, reserve1) = (reserve1, reserve0);
         }
-
         return (reserve0, reserve1);
     }
 
@@ -110,14 +116,15 @@ contract Trade is MandateBook, ITrade {
         return balance.counted;
     }
 
-    // trades from trader by the agreement
     function countTrades(uint256 agreementId) public override view returns (uint256) {
         return trades[agreementId].length;
     }
 
-    function getTrade(uint256 agreementId, uint256 index) public override view returns (TradeLog memory) {
+    function getTrade(
+        uint256 agreementId,
+        uint256 index
+    ) public override view returns (TradeLog memory) {
         require(index < countTrades(agreementId), "Trade not exist");
-
         return trades[agreementId][index];
     }
 
@@ -132,11 +139,7 @@ contract Trade is MandateBook, ITrade {
         uint256 amountIn,
         uint256 amountOut,
         uint256 deadline
-    )
-    external
-    override
-    canTrade(agreementId)
-    {
+    ) external override canTrade(agreementId) {
         _swapTokenToToken(
             agreementId,
             tokenIn,
@@ -148,7 +151,10 @@ contract Trade is MandateBook, ITrade {
     }
 
     // @dev get optimal amount in base asset, depend on agreement
-    function getOutAmount(uint256 agreementId, address asset) public view returns (uint256 amountOut) {
+    function getOutAmount(
+        uint256 agreementId,
+        address asset
+    ) public view returns (uint256 amountOut) {
         (uint256 reserveA, uint256 reserveB) = getLiquidity(
             (address(0) == asset) ? _router.WETH() : asset,
             getBaseAsset(agreementId)
@@ -160,7 +166,7 @@ contract Trade is MandateBook, ITrade {
         );
     }
 
-    // @dev sell one asset with optimal price by agreement id // should work properly
+    // @dev sell one asset with optimal price by agreement id
     function sell(
         uint256 agreementId,
         address asset
@@ -219,11 +225,13 @@ contract Trade is MandateBook, ITrade {
         return (_IMB.getAgreement(agreementId)).__committedCapital;
     }
 
-    function _sell(uint256 agreementId, address asset) private {
+    function _sell(
+        uint256 agreementId,
+        address asset
+    ) private {
         uint256 currentTimestamp = block.timestamp;
         uint256 amountIn = countedBalance[agreementId][asset];
         uint256 amountOut = getOutAmount(agreementId, asset);
-
         uint256[] memory amounts = _swapTokenToToken(
             agreementId,
             asset,
@@ -232,13 +240,15 @@ contract Trade is MandateBook, ITrade {
             amountOut,
             currentTimestamp.add(timeFrame)
         );
-
         _balances[agreementId].counted = _balances[agreementId].counted.add(
             amounts[amounts.length.sub(1)]);
         tokenSold[agreementId][asset] = true;
     }
 
-    function getPair(address tokenIn, address tokenOut) public view returns (address fromFactory, address fromLib) {
+    function getPair(
+        address tokenIn,
+        address tokenOut
+    ) public view returns (address fromFactory, address fromLib) {
         fromFactory = _factory.getPair(tokenIn, tokenOut);
         fromLib = UniswapV2Library.pairFor(address(_factory), tokenIn, tokenOut);
     }
@@ -263,9 +273,7 @@ contract Trade is MandateBook, ITrade {
             (uint256 reserve0, uint256 reserve1) = getLiquidity(tokenIn, tokenOut);
             require(reserve0 >= amountIn && reserve1 >= amountOut, "Not enough liquidity");
         }
-
         address thisContract = address(this);
-
         TransferHelper.safeApprove(tokenIn, address(_router), amountIn);
         TransferHelper.safeApprove(tokenIn, thisContract, amountIn);
         TransferHelper.safeApprove(tokenIn, address(pair), amountIn);
@@ -296,7 +304,6 @@ contract Trade is MandateBook, ITrade {
         uint256 currentTimestamp = block.timestamp;
         countedBalance[agreementId][tokenIn] = countedBalance[agreementId][tokenIn].sub(firstAmount);
         countedBalance[agreementId][tokenOut] = countedBalance[agreementId][tokenOut].add(lastAmount);
-
         trades[agreementId].push(
             TradeLog({
                 fromAsset: tokenIn,
@@ -306,7 +313,6 @@ contract Trade is MandateBook, ITrade {
                 timestamp: currentTimestamp
             })
         );
-
         emit Traded(
             agreementId,
             tokenIn,
@@ -335,9 +341,10 @@ contract Trade is MandateBook, ITrade {
 
     modifier onlyAfterActivePeriod(uint256 agreementId) {
         AMandate.Agreement memory _a = _IMB.getAgreement(agreementId);
-
-        // TODO: check time math logic
-        require(block.timestamp > _a.publishTimestamp.add(_a.openPeriod).add(_a.activePeriod), "Agreement still active");
+        require(
+            block.timestamp > _a.publishTimestamp.add(_a.openPeriod).add(_a.activePeriod),
+            "Agreement still active"
+        );
         _;
     }
 }
