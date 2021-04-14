@@ -96,6 +96,7 @@ contract('MandateBook', (accounts) => {
         toWei(100_000), /* collatAmount */
         toBN(OPENPERIOD1), /* open period */ 
         toBN(DURATION1),  /* duration   */
+        true,
         {from:MANAGER1});
       agreementId = txA.receipt.logs[0].args[0];
       });
@@ -277,6 +278,7 @@ contract('MandateBook', (accounts) => {
         depositCollateralAmount,
         toBN(OPENPERIOD1),
         toBN(DURATION1),
+        true,
         { from : MANAGER1 }
       );
       agreementId = tx.receipt.logs[0].args[0];
@@ -380,6 +382,7 @@ contract('MandateBook', (accounts) => {
           amountToCollat,
           toBN(OPENPERIOD1),
           toBN(DURATION1),
+          true,
           { from : MANAGER1 }
         );
         agreementIds.push(tx.receipt.logs[0].args[0]);
@@ -496,6 +499,7 @@ contract('MandateBook', (accounts) => {
         depositCollateralAmount,
         toBN(OPENPERIOD1),
         toBN(DURATION1),
+        true,
         { from : MANAGER1 }
       );
       agreementId = tx.receipt.logs[0].args[0];
@@ -559,7 +563,7 @@ contract('MandateBook', (accounts) => {
       });
       describe("When try to populate agreement", () => {
         testReject(
-          () => mockedTrade.populateAgreement(agreementId, agreement.baseCoin, 1, 1, 1, 1, 1, { from: MANAGER1 }),
+          () => mockedTrade.populateAgreement(agreementId, agreement.baseCoin, 1, 1, 1, 1, 1, true, { from: MANAGER1 }),
           "Agreement already deleted"
         );
       });
@@ -582,5 +586,98 @@ contract('MandateBook', (accounts) => {
         );
       });
     });
+  });
+  describe(
+    "Method commitToAgreement(uint256 agreementId, uint256 amount, uint256 minCollatRateRequirement): uint256",
+    () => {
+      before(async () => {
+        mockedTrade = await MockedTrade.deployed();
+        depositCollateralAmount = toWei(200_000);
+        agreementIncome = toWei(300_000);
+        commitAmount = toWei(70_000);
+        targetReturnRate = 30;
+        maxCollateralRateIfAvailable = 80;
+      });
+      describe("When agreement 'canInvestMoreThanCollateral' is false", () => {
+        before(async () => {
+          await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+          await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+          tx = await mockedTrade.createAgreement(
+            bPound.address,
+            targetReturnRate,
+            maxCollateralRateIfAvailable,
+            depositCollateralAmount,
+            toBN(OPENPERIOD1),
+            toBN(DURATION1),
+            false,
+            { from : MANAGER1 }
+          );
+          agreementId = tx.receipt.logs[0].args[0];
+          agreement = await mockedTrade.getAgreement(agreementId);
+          await mockedTrade.publishAgreement(agreementId, {from: MANAGER1});
+          await bPound.transfer(INVESTOR1, commitAmount, { from: MINTER });
+          await bPound.approve(mockedTrade.address, commitAmount, { from: INVESTOR1 });
+        });
+        describe("When min required collateral rate not positive", () => {
+          testReject(
+            () => mockedTrade.commitToAgreement(agreementId, commitAmount, 0, { from: INVESTOR1 }),
+            "Min required collateral rate must be positive"
+          );
+        });
+        describe("When min required collateral rate positive", () => {
+          it(
+            "should success",
+            () => mockedTrade.commitToAgreement(
+              agreementId,
+              commitAmount,
+              maxCollateralRateIfAvailable,
+              { from: INVESTOR1 }
+            )
+          );
+        });
+      });
+      describe("When agreement 'canInvestMoreThanCollateral' is true", () => {
+        before(async () => {
+          await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+          await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+          tx = await mockedTrade.createAgreement(
+            bPound.address,
+            targetReturnRate,
+            maxCollateralRateIfAvailable,
+            depositCollateralAmount,
+            toBN(OPENPERIOD1),
+            toBN(DURATION1),
+            true,
+            { from : MANAGER1 }
+          );
+          agreementId = tx.receipt.logs[0].args[0];
+          agreement = await mockedTrade.getAgreement(agreementId);
+          await mockedTrade.publishAgreement(agreementId, {from: MANAGER1});
+          await bPound.transfer(INVESTOR1, commitAmount.mul(new BN(2)), { from: MINTER });
+          await bPound.approve(mockedTrade.address, commitAmount.mul(new BN(2)), { from: INVESTOR1 });
+        });
+        describe("When min required collateral rate not positive", () => {
+          it(
+            "should success",
+            () => mockedTrade.commitToAgreement(
+              agreementId,
+              commitAmount,
+              0,
+              { from: INVESTOR1 }
+            )
+          );
+        });
+        describe("When min required collateral rate positive", () => {
+          it(
+            "should success",
+            () => mockedTrade.commitToAgreement(
+              agreementId,
+              commitAmount,
+              maxCollateralRateIfAvailable,
+              { from: INVESTOR1 }
+            )
+          );
+        });
+      });
   });
 })

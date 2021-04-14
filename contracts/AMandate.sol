@@ -31,7 +31,7 @@ abstract contract AMandate {
         uint256 stat_actualReturnRate; // used to hold the actual results of trading on the Agreement
         uint256 stat_remainingCollateral; // used to hold the actual results of trading on the Agreement
         uint256 stat_actualDuration; // used to hold the actual results of trading on the Agreement
-
+        bool canInvestMoreThanCollateral;
         bool isDeleted;
     }
 

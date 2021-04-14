@@ -68,7 +68,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint256 openPeriod,
-        uint256 activePeriod
+        uint256 activePeriod,
+        bool canInvestMoreThanCollateral
     ) external returns (uint256) {
         require(targetReturnRate <= maxCollateralRateIfAvailable, "Max collateral is greater than target return rate");
         _agreements.push(Agreement({
@@ -88,7 +89,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             stat_actualReturnRate: 0,
             stat_remainingCollateral: 0,
             stat_actualDuration: 0,
-
+            canInvestMoreThanCollateral: canInvestMoreThanCollateral,
             isDeleted: false
         }));
         uint256 agreementId = _agreements.length.sub(1);
@@ -102,7 +103,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             agreement.maxCollateralRateIfAvailable,
             agreement.__collatAmount,
             agreement.openPeriod,
-            agreement.activePeriod
+            agreement.activePeriod,
+            agreement.canInvestMoreThanCollateral
         );
         return agreementId;
     }
@@ -114,7 +116,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 maxCollateralRateIfAvailable,
         uint256 collatAmount,
         uint256 activePeriod,
-        uint256 openPeriod
+        uint256 openPeriod,
+        bool canInvestMoreThanCollateral
     ) external onlyExistAgreement(agreementId) {
         Agreement storage agreement = _agreements[agreementId];
         _assertIsAgreementManager(agreement);
@@ -131,6 +134,7 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         agreement.maxCollateralRateIfAvailable = maxCollateralRateIfAvailable;
         agreement.activePeriod = activePeriod;
         agreement.openPeriod = openPeriod;
+        agreement.canInvestMoreThanCollateral = canInvestMoreThanCollateral;
         if(collatAmount > agreement.__collatAmount) {
             _transferDepositCollateral(agreementId, collatAmount.sub(agreement.__collatAmount));
         }
@@ -145,7 +149,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
             agreement.maxCollateralRateIfAvailable,
             agreement.__collatAmount,
             agreement.openPeriod,
-            agreement.activePeriod
+            agreement.activePeriod,
+            agreement.canInvestMoreThanCollateral
         );
     }
 
@@ -234,6 +239,10 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 amount,
         uint256 minRequiredCollatRate
     ) internal returns(uint256 transferred) {
+        if (!agreement.canInvestMoreThanCollateral) require(
+            minRequiredCollatRate > 0,
+            "Min required collateral rate must be positive"
+        );
         transferred = __safeTransferFrom(agreement.baseCoin, msg.sender, address(this), amount);
         mandate.__committedCapital = mandate.__committedCapital.add(transferred);        
         agreement.__committedCapital = agreement.__committedCapital.add(transferred);
@@ -497,7 +506,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 maxCollateralRateIfAvailable,
         uint256 __collatAmount,
         uint256 openPeriod,
-        uint256 activePeriod
+        uint256 activePeriod,
+        bool canInvestMoreThanCollateral
     );
 
     event PopulateAgreement(
@@ -508,7 +518,8 @@ contract MandateBook is IMandateBook, AMandate, ReentrancyGuard {
         uint256 maxCollateralRateIfAvailable,
         uint256 __collatAmount,
         uint256 openPeriod,
-        uint256 activePeriod
+        uint256 activePeriod,
+        bool canInvestMoreThanCollateral
     );
 
     event DepositCollateral(

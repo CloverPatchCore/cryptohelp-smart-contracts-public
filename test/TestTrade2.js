@@ -195,6 +195,7 @@ contract('Trade', ([OWNER, MINTER, INVESTOR1, INVESTOR2, MANAGER1, MANAGER2, OUT
         collatAmount, /* collatAmount */
         OPENPERIOD1, /* open period */
         DURATION1,  /* duration   */
+        true,
         { from: MANAGER1 }
     );
 
