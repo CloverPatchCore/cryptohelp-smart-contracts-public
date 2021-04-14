@@ -27,11 +27,10 @@ module.exports = async function (deployer, network, accounts) {
   if ("mainnet" === network) {
     factory = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
     router = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
-  } else
-  if ("bscMainnet" === network) {
+  } else if ("bscMainnet" === network) {
     factory = '0xBCfCcbde45cE874adCB698cC183deBcF17952812';
     router = '0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F';
-  } else {;
+  } else {
     const liquidityAmount = toWei('100000');
     const WETH = await MockERC20.deployed();
     const firstToken = await FirstTradingToken.deployed();

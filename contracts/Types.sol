@@ -1,6 +1,6 @@
 pragma solidity ^0.6.6;
 
-abstract contract AMandate {
+abstract contract Types {
     /* don't forget to update the consts in the tests when you are changing the values here*/
     enum AgreementLifeCycle {
         EMPTY, // newly created and unfilled with data
@@ -35,7 +35,8 @@ abstract contract AMandate {
         bool isDeleted;
     }
 
-    enum MandateLifeCycle { // THIS IS WORK-IN-PROGRESS
+    enum MandateLifeCycle {
+        // THIS IS WORK-IN-PROGRESS
         EMPTY,
         POPULATED,
         COMMITTED,
@@ -53,5 +54,13 @@ abstract contract AMandate {
         uint256 agreement; //reference to an agreementId to which this mandate is committed
         uint256 __committedCapital; // how much capital an Investor has committed; to be updated on the deposit / withdrawal
         uint256 __collatAmount; // collateral amount locked in by fund manager
+    }
+
+    struct TradeLog {
+        address fromAsset;
+        address toAsset;
+        uint256 amountIn;
+        uint256 amountOut;
+        uint256 timestamp;
     }
 }
