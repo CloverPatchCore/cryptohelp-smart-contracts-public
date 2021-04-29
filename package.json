@@ -16,6 +16,7 @@
     "verify:bsc:testnet": "yarn verify --network bscTestnet",
     "verify:bsc:mainnet": "yarn verify --network bscMainnet",
     "lint": "prettier contracts -w && solhint contracts/*.sol contracts/*/*.sol",
+    "coverage": "truffle run coverage --file=./test/index.js",
     "test": "truffle test",
     "watch": "truffle watch"
   },

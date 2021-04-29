@@ -680,4 +680,247 @@ contract('MandateBook', (accounts) => {
         });
       });
   });
+  describe("Method withdrawCapital(uint256 mandateId, uint256 amount)", () => {
+    before(async () => {
+      mockedTrade = await MockedTrade.deployed();
+      depositCollateralAmount = toWei(200_000);
+      agreementIncome = toWei(300_000);
+      commitAmount = toWei(70_000);
+      withdrawAmount = commitAmount.sub(new BN(2));
+      targetReturnRate = 30;
+      maxCollateralRateIfAvailable = 80;
+    });
+    before(async () => {
+      await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+      await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+      tx = await mockedTrade.createAgreement(
+        bPound.address,
+        targetReturnRate,
+        maxCollateralRateIfAvailable,
+        depositCollateralAmount,
+        toBN(OPENPERIOD1),
+        toBN(DURATION1),
+        false,
+        { from : MANAGER1 }
+      );
+      agreementId = tx.receipt.logs[0].args[0];
+      await mockedTrade.publishAgreement(agreementId, {from: MANAGER1});
+      await bPound.transfer(INVESTOR1, commitAmount, { from: MINTER });
+      await bPound.approve(mockedTrade.address, commitAmount, { from: INVESTOR1 });
+      tx = await mockedTrade.commitToAgreement(
+        agreementId,
+        commitAmount,
+        maxCollateralRateIfAvailable,
+        { from: INVESTOR1 }
+      );
+      mandateId = tx.logs[0].args.mandateId;
+    });
+    describe("When mandate not exist", () => {
+      testReject(
+        () => mockedTrade.withdrawCapital(mandateId.add(new BN(1)), commitAmount, { from: INVESTOR1 }),
+        "Mandate not exist"
+      );
+    });
+    describe("When caller is not mandate investor", () => {
+      testReject(
+        () => mockedTrade.withdrawCapital(mandateId, commitAmount, { from: MINTER }),
+        "Only Mandate Investor"
+      );
+    });
+    describe("When agreement in active status", () => {
+      before(async () => {
+        await bPound.transfer(MANAGER1, depositCollateralAmount, { from: MINTER });
+        await bPound.approve(mockedTrade.address, depositCollateralAmount, { from: MANAGER1 });
+        txActive = await mockedTrade.createAgreement(
+          bPound.address,
+          targetReturnRate,
+          maxCollateralRateIfAvailable,
+          depositCollateralAmount,
+          toBN(OPENPERIOD1),
+          toBN(DURATION1),
+          false,
+          { from : MANAGER1 }
+        );
+        agreementIdActive = txActive.receipt.logs[0].args[0];
+        await mockedTrade.publishAgreement(agreementIdActive, {from: MANAGER1});
+        await bPound.transfer(INVESTOR1, commitAmount, { from: MINTER });
+        await bPound.approve(mockedTrade.address, commitAmount, { from: INVESTOR1 });
+        txActive = await mockedTrade.commitToAgreement(
+          agreementIdActive,
+          commitAmount,
+          maxCollateralRateIfAvailable,
+          { from: INVESTOR1 }
+        );
+        mandateIdActive = txActive.logs[0].args.mandateId;
+        await mockedTrade.activateAgreement(agreementIdActive, { from: MANAGER1 });
+      });
+      testReject(
+        () => mockedTrade.withdrawCapital(mandateIdActive, commitAmount, { from: INVESTOR1 }),
+        "Can't withdraw from agreement at this stage"
+      );
+    });
+    describe("When withdraw amount more than commitAmount", () => {
+      testReject(
+        () => mockedTrade.withdrawCapital(mandateId, commitAmount.add(new BN(1)), { from: INVESTOR1 }),
+        "Can't withdraw more than you have"
+      );
+    });
+    describe("When withdraw amount less than commitAmount", () => {
+      before(async () => {
+        investorBalanceBefore = await bPound.balanceOf(INVESTOR1);
+        mandateBefore = await mockedTrade.getMandate(mandateId);
+        agreementBefore = await mockedTrade.getAgreement(agreementId);
+        collatToRelease = new BN(mandateBefore.__collatAmount)
+          .mul(withdrawAmount)
+          .div(new BN(mandateBefore.__committedCapital));
+      });
+      it("should success", async () => {
+        result = await mockedTrade.withdrawCapital(mandateId, withdrawAmount, { from: INVESTOR1 });
+      });
+      it("should increase investor balance to expected", async () => {
+        investorBalance = await bPound.balanceOf(INVESTOR1);
+        assert.strictEqual(
+          investorBalance.toString(10),
+          investorBalanceBefore.add(withdrawAmount).toString(10)
+        );
+      });
+      describe("Check mandate object changes", () => {
+        before(async () => {
+          mandate = await mockedTrade.getMandate(mandateId);
+        });
+        it("should decrease '__commitedCapital' field to expected", () => assert.strictEqual(
+          mandate.__committedCapital.toString(10),
+          new BN(mandateBefore.__committedCapital).sub(withdrawAmount).toString(10)
+        ));
+        it("should decrease '__collatAmount' field to expected", () => assert.strictEqual(
+          mandate.__collatAmount.toString(10),
+          new BN(mandateBefore.__collatAmount).sub(collatToRelease).toString(10)
+        ));
+      });
+      describe("Check agreement object changes", () => {
+        before(async () => {
+          agreement = await mockedTrade.getAgreement(agreementId);
+        });
+        it("should decrease '__commitedCapital' field to expected", () => assert.strictEqual(
+          agreement.__committedCapital.toString(10),
+          new BN(agreementBefore.__committedCapital).sub(withdrawAmount).toString(10)
+        ));
+        it("should increase '__freeCollatAmount' field to expected", () =>  assert.strictEqual(
+          agreement.__freeCollatAmount.toString(10),
+          new BN(agreementBefore.__freeCollatAmount).add(collatToRelease).toString(10)
+        ));
+      });
+      describe("should emit event", () => {
+        before(() => {
+          event_ = result.logs[0];
+        });
+        it('should event `name` be equal to expected', () => {
+          assert.strictEqual(event_.event, 'WithdrawCapital');
+        });
+        it('should `agreementId` field be equal to expected', () => {
+          assert.strictEqual(event_.args[0].toString(10), agreementId.toString(10));
+        });
+        it('should `manager` field be equal to expected', () => {
+          assert.strictEqual(event_.args[1], MANAGER1);
+        });
+        it('should `mandateId` field be equal to expected', () => {
+          assert.strictEqual(event_.args[2].toString(10), mandateId.toString(10));
+        });
+        it('should `investor` field be equal to expected', () => {
+          assert.strictEqual(event_.args[3], INVESTOR1);
+        });
+        it('should `amount` field be equal to expected', () => {
+          assert.strictEqual(event_.args[4].toString(10), withdrawAmount.toString(10));
+        });
+      });
+    });
+    describe("When withdraw amount equal to commitAmount", () => {
+      before(async () => {
+        investorBalanceBefore = await bPound.balanceOf(INVESTOR1);
+        mandateBefore = await mockedTrade.getMandate(mandateId);
+        residualCommitAmount = new BN(mandateBefore.__committedCapital);
+        agreementBefore = await mockedTrade.getAgreement(agreementId);
+        collatToRelease = new BN(mandateBefore.__collatAmount);
+      });
+      it("should success", async () => {
+        result = await mockedTrade.withdrawCapital(mandateId, residualCommitAmount, { from: INVESTOR1 });
+      });
+      it("should increase investor balance to expected", async () => {
+        investorBalance = await bPound.balanceOf(INVESTOR1);
+        assert.strictEqual(
+          investorBalance.toString(10),
+          investorBalanceBefore.add(residualCommitAmount).toString(10)
+        );
+      });
+      describe("Check mandate object changes", () => {
+        before(async () => {
+          mandate = await mockedTrade.getMandate(mandateId);
+        });
+        it("should decrease '__commitedCapital' field to expected", () => assert.strictEqual(
+          mandate.__committedCapital.toString(10),
+          new BN(mandateBefore.__committedCapital).sub(residualCommitAmount).toString(10)
+        ));
+        it("should decrease '__collatAmount' field to expected", () => assert.strictEqual(
+          mandate.__collatAmount.toString(10),
+          new BN(mandateBefore.__collatAmount).sub(collatToRelease).toString(10)
+        ));
+      });
+      describe("Check agreement object changes", () => {
+        before(async () => {
+          agreement = await mockedTrade.getAgreement(agreementId);
+        });
+        it("should decrease '__commitedCapital' field to expected", () => assert.strictEqual(
+          agreement.__committedCapital.toString(10),
+          new BN(agreementBefore.__committedCapital).sub(residualCommitAmount).toString(10)
+        ));
+        it("should increase '__freeCollatAmount' field to expected", () =>  assert.strictEqual(
+          agreement.__freeCollatAmount.toString(10),
+          new BN(agreementBefore.__freeCollatAmount).add(collatToRelease).toString(10)
+        ));
+      });
+      describe("should emit events", () => {
+        before(() => {
+          withdrawCapitalEvent = result.logs[0];
+          cancelMandateEvent = result.logs[1];
+        });
+        describe("Event #1", () => {
+          it('should event `name` be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.event, 'WithdrawCapital');
+          });
+          it('should `agreementId` field be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.args[0].toString(10), agreementId.toString(10));
+          });
+          it('should `manager` field be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.args[1], MANAGER1);
+          });
+          it('should `mandateId` field be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.args[2].toString(10), mandateId.toString(10));
+          });
+          it('should `investor` field be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.args[3], INVESTOR1);
+          });
+          it('should `amount` field be equal to expected', () => {
+            assert.strictEqual(withdrawCapitalEvent.args[4].toString(10), residualCommitAmount.toString(10));
+          });
+        });
+        describe("Event #2", () => {
+          it('should event `name` be equal to expected', () => {
+            assert.strictEqual(cancelMandateEvent.event, 'CancelMandate');
+          });
+          it('should `agreementId` field be equal to expected', () => {
+            assert.strictEqual(cancelMandateEvent.args[0].toString(10), agreementId.toString(10));
+          });
+          it('should `manager` field be equal to expected', () => {
+            assert.strictEqual(cancelMandateEvent.args[1], MANAGER1);
+          });
+          it('should `mandateId` field be equal to expected', () => {
+            assert.strictEqual(cancelMandateEvent.args[2].toString(10), mandateId.toString(10));
+          });
+          it('should `investor` field be equal to expected', () => {
+            assert.strictEqual(cancelMandateEvent.args[3], INVESTOR1);
+          });
+        });
+      });
+    });
+  });
 })

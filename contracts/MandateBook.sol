@@ -261,13 +261,13 @@ contract MandateBook is IMandateBook, Types, ReentrancyGuard {
         Agreement storage agreement,
         Mandate storage mandate,
         uint256 amount
-    ) internal returns (uint256 transferred) {
-        transferred = __safeTransferFrom(agreement.baseCoin, address(this), mandate.investor, amount);
-        uint256 collatToRelease = mandate.__collatAmount.mul(transferred).div(mandate.__committedCapital);
-        mandate.__committedCapital = mandate.__committedCapital.sub(transferred);
-        agreement.__committedCapital = agreement.__committedCapital.sub(transferred);
+    ) internal {
+        uint256 collatToRelease = mandate.__collatAmount.mul(amount).div(mandate.__committedCapital);
+        mandate.__committedCapital = mandate.__committedCapital.sub(amount);
+        agreement.__committedCapital = agreement.__committedCapital.sub(amount);
         mandate.__collatAmount = mandate.__collatAmount.sub(collatToRelease);
         agreement.__freeCollatAmount = agreement.__freeCollatAmount.add(collatToRelease);
+        IERC20(agreement.baseCoin).transfer(mandate.investor, amount);
     }
 
     function depositCapital(
@@ -283,19 +283,14 @@ contract MandateBook is IMandateBook, Types, ReentrancyGuard {
         emit DepositCapital(mandate.agreement, agreement.manager, mandateId, mandate.investor, transferred);
     }
 
-    function withdrawCapital(uint256 mandateId, uint256 amount)
-        external
-        override
-        onlyExistMandate(mandateId)
-        returns (uint256 transferred)
-    {
+    function withdrawCapital(uint256 mandateId, uint256 amount) external override onlyExistMandate(mandateId) {
         Mandate storage mandate = _mandates[mandateId];
         require(msg.sender == mandate.investor, "Only Mandate Investor");
         Agreement storage agreement = _agreements[mandate.agreement];
         require(agreement.status < AgreementLifeCycle.ACTIVE, "Can't withdraw from agreement at this stage");
         require(amount <= mandate.__committedCapital, "Can't withdraw more than you have");
-        transferred = _transferWithdrawCapital(agreement, mandate, amount);
-        emit WithdrawCapital(mandate.agreement, agreement.manager, mandateId, mandate.investor, transferred);
+        _transferWithdrawCapital(agreement, mandate, amount);
+        emit WithdrawCapital(mandate.agreement, agreement.manager, mandateId, mandate.investor, amount);
         if (0 == mandate.__committedCapital) {
             _cancelEmptyMandate(agreement, mandate);
             emit CancelMandate(mandate.agreement, agreement.manager, mandateId, mandate.investor);
@@ -311,8 +306,17 @@ contract MandateBook is IMandateBook, Types, ReentrancyGuard {
         Mandate storage mandate = _mandates[mandateId];
         Agreement storage agreement = _agreements[mandate.agreement];
         _assertIsMandateOrAgreementOwner(agreement, mandate);
-        uint256 transferred = _transferWithdrawCapital(agreement, mandate, mandate.__committedCapital);
-        emit WithdrawCapital(mandate.agreement, agreement.manager, mandateId, mandate.investor, transferred);
+        uint256 mandateCommitedCapital = mandate.__committedCapital;
+        if (mandateCommitedCapital > 0) {
+            _transferWithdrawCapital(agreement, mandate, mandateCommitedCapital);
+            emit WithdrawCapital(
+                mandate.agreement,
+                agreement.manager,
+                mandateId,
+                mandate.investor,
+                mandateCommitedCapital
+            );
+        }
         _cancelEmptyMandate(agreement, mandate);
         emit CancelMandate(mandate.agreement, agreement.manager, mandateId, mandate.investor);
     }

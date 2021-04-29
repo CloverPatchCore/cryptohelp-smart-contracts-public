@@ -16,7 +16,7 @@ interface IMandateBook {
         uint256 minCollatRateRequirement
     ) external returns (uint256 finalMandateCapitalBalance);
 
-    function withdrawCapital(uint256 mandateId, uint256 amount) external returns (uint256 finalMandateCapitalBalance);
+    function withdrawCapital(uint256 mandateId, uint256 amount) external;
 
     function getAgreement(uint256 agreementId) external view returns (Types.Agreement memory agreement);
 
