@@ -122,4 +122,5 @@ build/
 package-lock.json
 .vscode/
 
-test2/UniswapTest.js
+/coverage/
+/coverage.json
